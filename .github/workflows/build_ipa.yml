@@ -3,13 +3,8 @@ name: Build Palladium .ipa (Unsigned)
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/build_ipa.yml"
-      - "Frameworks/**"
-      - "Palladium/**"
-      - "Palladium.xcodeproj/project.pbxproj"
-      - "build_ipa.sh"
-      - "scripts/**"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
