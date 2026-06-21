@@ -74,6 +74,7 @@ struct ContentView: View {
     static let autoUpdatePackagesOnLaunchDefaultsKey = "palladium.autoUpdatePackagesOnLaunch"
     static let packageSourceModeDefaultsKey = "palladium.packageSourceMode"
     static let customPackageSpecsDefaultsKey = "palladium.customPackageSpecs"
+    static let downloadEngineDefaultsKey = "palladium.downloadEngine"
     static let defaultLinkHistoryLimit = 10
     static let maxLinkHistoryLimit = 50
 
@@ -157,10 +158,18 @@ struct ContentView: View {
     @State var showShareSheetDownloadPicker = false
     @State var shareSheetURL = ""
     @State var lastConsumedShortcutRequestID: UUID?
+    @State var downloadEngine: DownloadEngine
+
+    static func loadDownloadEngine() -> DownloadEngine {
+        guard let raw = UserDefaults.standard.string(forKey: downloadEngineDefaultsKey),
+              let engine = DownloadEngine(rawValue: raw) else { return .ytDlp }
+        return engine
+    }
 
     init() {
         let rememberPreset = Self.loadRememberSelectedPreset()
         _urlText = State(initialValue: Self.isDebuggerAttached() ? "https://www.youtube.com/watch?v=jNQXAC9IVRw" : "")
+        _downloadEngine = State(initialValue: Self.loadDownloadEngine())
         _selectedPreset = State(initialValue: Self.loadSelectedPreset(rememberSelection: rememberPreset))
         _customArgsText = State(initialValue: Self.loadCustomArgs())
         _extraArgsText = State(initialValue: Self.loadExtraArgs())
@@ -208,6 +217,7 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             TabView(selection: $selectedTab) {
                 DownloadTabView(
+                    downloadEngine: $downloadEngine,
                     statusText: $statusText,
                     urlText: $urlText,
                     selectedPreset: $selectedPreset,

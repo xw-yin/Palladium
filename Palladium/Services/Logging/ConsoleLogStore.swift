@@ -60,6 +60,17 @@ final class ConsoleLogStore: ObservableObject {
         Task {
             await writer.prepare()
         }
+
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PalladiumLogNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            if let message = notification.object as? String {
+                self.appendChunk(message + "\n")
+            }
+        }
     }
 
     var entryCount: Int {
@@ -280,4 +291,9 @@ actor ConsoleLogFileWriter {
         guard !FileManager.default.fileExists(atPath: activeLogFileURL.path) else { return }
         _ = FileManager.default.createFile(atPath: activeLogFileURL.path, contents: nil)
     }
+}
+
+func logOutput(_ message: String) {
+    print(message)
+    NotificationCenter.default.post(name: NSNotification.Name("PalladiumLogNotification"), object: message)
 }

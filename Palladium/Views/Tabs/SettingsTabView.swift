@@ -17,6 +17,7 @@ struct SettingsTabView: View {
         case notifications
         case storage
         case packages
+        case cobaltAPI
         case about
     }
 
@@ -113,6 +114,17 @@ struct SettingsTabView: View {
 
                     NavigationLink(value: SettingsRoute.packages) {
                         packagesSettingsRow()
+                    }
+                }
+
+                Section(header: Text("Cobalt API")) {
+                    NavigationLink(value: SettingsRoute.cobaltAPI) {
+                        settingsRow(
+                            title: "Cobalt API",
+                            subtitle: "Configure API endpoint and authentication",
+                            icon: "network",
+                            color: .purple
+                        )
                     }
                 }
 
@@ -255,6 +267,8 @@ struct SettingsTabView: View {
                         onFetchPackageVersions: onFetchPackageVersions,
                         onAppear: onOpenPackageManager
                     )
+                case .cobaltAPI:
+                    CobaltSettingsView()
                 case .about:
                     SettingsAboutView()
                 }

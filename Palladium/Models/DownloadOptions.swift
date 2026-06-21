@@ -1,5 +1,38 @@
 import Foundation
 
+// MARK: - Download Engine
+
+/// Which download backend to use.
+enum DownloadEngine: String, Codable, CaseIterable, Identifiable {
+    case ytDlp  = "yt_dlp"
+    case cobalt = "cobalt"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ytDlp:  return "yt-dlp 本地"
+        case .cobalt: return "Cobalt API"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .ytDlp:  return "cpu"
+        case .cobalt: return "network"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .ytDlp:  return "无需服务器，本地运行，支持更多平台"
+        case .cobalt: return "需配置 Cobalt API 服务器，速度快"
+        }
+    }
+}
+
+// MARK: - Download Preset
+
 enum DownloadPreset: String, Codable, CaseIterable, Identifiable {
     case autoVideo = "auto_video"
     case mute = "mute"

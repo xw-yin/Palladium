@@ -4,6 +4,7 @@ import UIKit
 struct DownloadTabView: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    @Binding var downloadEngine: DownloadEngine
     @Binding var statusText: String
     @Binding var urlText: String
     @Binding var selectedPreset: DownloadPreset
@@ -133,6 +134,14 @@ struct DownloadTabView: View {
                 }
 
                 VStack(spacing: 10) {
+                    Picker("Download Engine", selection: $downloadEngine) {
+                        ForEach(DownloadEngine.allCases) { engine in
+                            Text(engine.title).tag(engine)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isRunning)
+
                     Picker("download.preset.title", selection: $selectedPreset) {
                         ForEach(DownloadPreset.allCases) { preset in
                             Text(preset.title).tag(preset)

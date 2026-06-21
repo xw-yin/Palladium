@@ -64,6 +64,8 @@ extension ContentView {
         defaults.set(autoUpdatePackagesOnLaunch, forKey: Self.autoUpdatePackagesOnLaunchDefaultsKey)
         defaults.set(packageSourceMode.rawValue, forKey: Self.packageSourceModeDefaultsKey)
         defaults.set(customPackageSpecsText, forKey: Self.customPackageSpecsDefaultsKey)
+        // Download engine
+        defaults.set(downloadEngine.rawValue, forKey: Self.downloadEngineDefaultsKey)
     }
 
     static func loadSelectedPreset(rememberSelection: Bool) -> DownloadPreset {

@@ -142,6 +142,12 @@ extension ContentView {
         let targetURL = (urlOverride ?? urlText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !targetURL.isEmpty else { return }
 
+        // --- Engine routing ---
+        if downloadEngine == .cobalt {
+            runCobaltDownloadFlow(urlString: targetURL, afterDownloadOverride: afterDownloadOverride)
+            return
+        }
+
         guard allowlistChecked else {
             isCheckingDownloadAllowlist = true
             progressText = String(localized: "allowlists.status.checking")
@@ -511,6 +517,10 @@ extension ContentView {
     func cancelDownloadFlow() {
         guard isRunning else { return }
         downloadCancelRequested = true
+        if downloadEngine == .cobalt {
+            cancelCobaltDownload()
+            return
+        }
         requestActiveOperationCancellation()
         currentDownloadTask?.cancel()
         pendingDownloadProgressLine = ""
