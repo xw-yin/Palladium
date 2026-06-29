@@ -19,13 +19,13 @@ extension ContentView {
         updateWhenAvailable: Bool = false,
         isAutomaticUpdate: Bool = false
     ) {
-        guard !isRunning, !isPackageRunning else { return }
+        guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else { return }
 
         isPackageRunning = true
         isAutomaticallyUpdatingPackages = isAutomaticUpdate
         syncIdleTimerDisabled()
         switch action {
-        case "update":
+        case "update", "reinstall":
             packageStatusText = "updating"
         case "index_versions":
             packageStatusText = "indexing"
@@ -106,10 +106,18 @@ extension ContentView {
             if let availableVersions = outcome.availableVersions {
                 self.availablePackageVersions = availableVersions
             }
+            if outcome.restartRequired {
+                alertMessage = String(localized: "settings.advanced.restart_required")
+                showAlert = true
+            }
             self.hasLoadedPackageStatus = true
             Self.logger.info("package flow finished with status: \(outcome.statusText, privacy: .public)")
 
             if action == "check", updateWhenAvailable, updatesAvailable {
+                guard !isRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else {
+                    appendConsoleText("[palladium] automatic package update skipped because a download is starting\n")
+                    return
+                }
                 runPackageFlow(action: "update", isAutomaticUpdate: true)
             }
 
@@ -136,7 +144,21 @@ extension ContentView {
         runPackageFlow(action: "update")
     }
 
-    func updatePackagesWithCustomVersions(_ ytDlpVersion: String?, _ webkitJSIVersion: String?, _ pipVersion: String?) {
+    func reinstallPackages() {
+        if packageSourceMode == .custom && customPackageSpecs().isEmpty {
+            alertMessage = String(localized: "packages.source.custom_specs.empty")
+            showAlert = true
+            return
+        }
+        runPackageFlow(action: "reinstall")
+    }
+
+    func updatePackagesWithCustomVersions(
+        _ ytDlpVersion: String?,
+        _ webkitJSIVersion: String?,
+        _ galleryDLVersion: String?,
+        _ pipVersion: String?
+    ) {
         guard packageSourceMode != .custom else { return }
         var customVersions: [String: String] = [:]
         if let ytDlpVersion {
@@ -144,6 +166,9 @@ extension ContentView {
         }
         if let webkitJSIVersion {
             customVersions["yt-dlp-apple-webkit-jsi"] = webkitJSIVersion
+        }
+        if let galleryDLVersion {
+            customVersions["gallery-dl"] = galleryDLVersion
         }
         if let pipVersion {
             customVersions["pip"] = pipVersion
@@ -164,7 +189,8 @@ extension ContentView {
         let specs = customPackageSpecs()
         let payload: [String: Any] = [
             "mode": packageSourceMode.rawValue,
-            "custom_specs": specs
+            "custom_specs": specs,
+            "disable_webkit_jsi_patch": disableWebKitJSIPatch
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let text = String(data: data, encoding: .utf8) else {

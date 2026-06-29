@@ -37,16 +37,32 @@ enum DownloadPreset: String, Codable, CaseIterable, Identifiable {
     case autoVideo = "auto_video"
     case mute = "mute"
     case audio = "audio"
+    case images = "images"
     case custom = "custom"
 
     var id: String { rawValue }
     var pythonValue: String { rawValue }
+
+    var shareSheetMode: ShareSheetDownloadMode {
+        switch self {
+        case .autoVideo: return .autoVideo
+        case .mute: return .mute
+        case .audio: return .audio
+        case .images: return .images
+        case .custom: return .custom
+        }
+    }
+
+    static var defaultSettings: [DownloadPresetSetting] {
+        allCases.map { DownloadPresetSetting(preset: $0, isVisible: $0 != .custom) }
+    }
 
     var title: String {
         switch self {
         case .autoVideo: return String(localized: "download.preset.video")
         case .mute: return String(localized: "download.preset.mute")
         case .audio: return String(localized: "download.preset.audio")
+        case .images: return String(localized: "download.preset.images")
         case .custom: return String(localized: "common.custom")
         }
     }
@@ -59,9 +75,29 @@ enum DownloadPreset: String, Codable, CaseIterable, Identifiable {
             return "-f bv/bestvideo --merge-output-format mp4 --remux-video mp4 -S vcodec:h264,lang,quality,res,fps,hdr:12"
         case .audio:
             return "-f ba[acodec^=mp3]/ba/b -x --audio-format mp3"
+        case .images:
+            return ""
         case .custom:
             return ""
         }
+    }
+}
+
+struct DownloadPresetSetting: Codable, Identifiable, Equatable {
+    let preset: DownloadPreset
+    var isVisible: Bool
+
+    var id: String { preset.rawValue }
+}
+
+enum DownloadOptions {
+    static func visiblePresets(from settings: [DownloadPresetSetting]) -> [DownloadPreset] {
+        let visible = settings.filter { $0.isVisible }.map { $0.preset }
+        return visible.isEmpty ? [.autoVideo] : visible
+    }
+
+    static func visibleShareSheetModes(from settings: [DownloadPresetSetting]) -> [ShareSheetDownloadMode] {
+        [.ask] + visiblePresets(from: settings).map { $0.shareSheetMode }
     }
 }
 
@@ -135,6 +171,7 @@ enum ShareSheetDownloadMode: String, Codable, CaseIterable, Identifiable {
     case audio
     case mute
     case custom
+    case images
 
     var id: String { rawValue }
 
@@ -145,6 +182,7 @@ enum ShareSheetDownloadMode: String, Codable, CaseIterable, Identifiable {
         case .audio: return String(localized: "download.preset.audio")
         case .mute: return String(localized: "download.preset.mute")
         case .custom: return String(localized: "common.custom")
+        case .images: return String(localized: "download.preset.images")
         }
     }
 
@@ -160,6 +198,8 @@ enum ShareSheetDownloadMode: String, Codable, CaseIterable, Identifiable {
             return .mute
         case .custom:
             return .custom
+        case .images:
+            return .images
         }
     }
 }

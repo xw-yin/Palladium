@@ -18,6 +18,7 @@ struct SettingsTabView: View {
         case storage
         case packages
         case cobaltAPI
+        case advanced
         case about
     }
 
@@ -32,6 +33,7 @@ struct SettingsTabView: View {
     @Binding var autoDownloadOnPaste: Bool
     @Binding var autoRetryFailedDownloads: Bool
     @Binding var detailedProgressEnabled: Bool
+    @Binding var downloadPresetSettings: [DownloadPresetSetting]
     @Binding var shareSheetDownloadMode: ShareSheetDownloadMode
     @Binding var linkHistoryEnabled: Bool
     @Binding var linkHistoryLimit: Int
@@ -49,6 +51,7 @@ struct SettingsTabView: View {
     let storageSummary: StorageManagementSummary
     @Binding var packageSourceMode: PackageSourceMode
     @Binding var customPackageSpecsText: String
+    @Binding var disableWebKitJSIPatch: Bool
     let packageStatusText: String
     let versionsText: String
     let updatesSummaryText: String
@@ -61,7 +64,8 @@ struct SettingsTabView: View {
     let onRefreshVersions: () -> Void
     let onCancelPackages: () -> Void
     let onUpdatePackages: () -> Void
-    let onCustomUpdatePackages: (_ ytDlpVersion: String?, _ webkitJSIVersion: String?, _ pipVersion: String?) -> Void
+    let onReinstallPackages: () -> Void
+    let onCustomUpdatePackages: (_ ytDlpVersion: String?, _ webkitJSIVersion: String?, _ galleryDLVersion: String?, _ pipVersion: String?) -> Void
     let onFetchPackageVersions: () -> Void
     let onOpenPackageManager: () -> Void
     let onRefreshStorage: () -> Void
@@ -115,6 +119,15 @@ struct SettingsTabView: View {
                     NavigationLink(value: SettingsRoute.packages) {
                         packagesSettingsRow()
                     }
+
+                    NavigationLink(value: SettingsRoute.advanced) {
+                        settingsRow(
+                            title: String(localized: "settings.advanced.title"),
+                            subtitle: String(localized: "settings.advanced.subtitle"),
+                            icon: "gearshape.2.fill",
+                            color: .gray
+                        )
+                    }
                 }
 
                 Section(header: Text("Cobalt API")) {
@@ -164,6 +177,7 @@ struct SettingsTabView: View {
                         selectedPreset: $selectedPreset,
                         rememberSelectedPreset: $rememberSelectedPreset,
                         shareSheetDownloadMode: $shareSheetDownloadMode,
+                        downloadPresetSettings: $downloadPresetSettings,
                         isRunning: isRunning
                     )
                 case .downloadOptions:
@@ -269,6 +283,12 @@ struct SettingsTabView: View {
                     )
                 case .cobaltAPI:
                     CobaltSettingsView()
+                case .advanced:
+                    AdvancedSettingsView(
+                        disableWebKitJSIPatch: $disableWebKitJSIPatch,
+                        isRunning: isRunning || isPackageRunning,
+                        onReinstallPackages: onReinstallPackages
+                    )
                 case .about:
                     SettingsAboutView()
                 }

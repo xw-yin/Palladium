@@ -4,7 +4,7 @@
 
 # Palladium
 
-On-device iOS media downloader powered by `yt-dlp`, `ffmpeg`, and `PythonKit`.
+On-device iOS media downloader powered by `yt-dlp`, `gallery-dl`, `ffmpeg`, and `PythonKit`.
 
 </div>
 
@@ -19,15 +19,21 @@ On-device iOS media downloader powered by `yt-dlp`, `ffmpeg`, and `PythonKit`.
   </a>
 </div>
 
+> [!TIP]
+> **This URL is not allowed by the configured download allowlists.**
+>
+> To allow downloads from any URL, visit [getpalladium.app/allowlist](https://getpalladium.app/allowlist) and click **Add to Palladium**.<br>
+> To craft allowlists manually, see [docs/ALLOWLISTS](docs/ALLOWLISTS.md) or [#12](https://github.com/tfourj/Palladium/issues/12) for more information.
+
 ## What It Does
 
 - Downloads media directly on iPhone and iPad
-- Uses `yt-dlp` for extraction and `ffmpeg` for processing
+- Uses `yt-dlp` for media extraction, `gallery-dl` for images, and `ffmpeg` for processing
 - Runs Python tooling inside the app
 
 > [!NOTE]
-> **AI-assisted development:** Palladium is my third attempt at building a `yt-dlp` GUI for iOS. The first two (one built with Toga/BeeWare and another combining BeeWare with SwiftUI) were fully vibecoded prototypes. Palladium was also built heavily with AI assistance, but its code has been reviewed and refined more than previous prototypes. I originally needed it to avoid YouTube bot-protection issues in [Nickel](https://github.com/tfourj/Nickel).
-> While it is actively tested and continuously improved, you may still encounter bugs.
+> **AI-assisted development:** Palladium is my third attempt at building a `yt-dlp` GUI for iOS. The first two (one built with Toga/BeeWare and another combining BeeWare with SwiftUI) were fully vibecoded prototypes. Palladium was also built heavily with AI assistance, but its code has been reviewed and refined more than previous prototypes. I originally needed it to avoid YouTube bot-protection issues in [Nickel](https://github.com/tfourj/Nickel).<br>
+> While it is actively tested and continuously improved, you may still encounter bugs.<br>
 > Feedback is greatly appreciated. If you find a bug, please open an issue and we’ll work to fix it.
 
 
@@ -42,12 +48,15 @@ On-device iOS media downloader powered by `yt-dlp`, `ffmpeg`, and `PythonKit`.
 
 Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
-Build instructions: [docs/BUILD.md](docs/BUILD.md). See [docs/STRUCTURE.md](docs/STRUCTURE.md) for a project map.
+Build instructions: [docs/BUILD.md](docs/BUILD.md).
+
+Other documentation: [docs/ALLOWLISTS.md](docs/ALLOWLISTS.md) for custom URL allowlists and [docs/STRUCTURE.md](docs/STRUCTURE.md) for a project map.
 
 ## Credits & Acknowledgments
 
 
 - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp)
+- [`gallery-dl`](https://github.com/mikf/gallery-dl)
 - [`yt-dlp-apple-webkit-jsi`](https://github.com/grqz/yt-dlp-apple-webkit-jsi)
 - [`ffmpeg`](https://ffmpeg.org/)
 - [`PythonKit`](https://github.com/pvieito/PythonKit)

@@ -34,6 +34,7 @@ Palladium/
 | `Palladium.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` | Pinned Swift Package dependencies. |
 | `build_ipa.sh` | Builds and exports an IPA outside Xcode. |
 | `scripts/install_python_runtime.sh` | Copies Python runtime files and privacy manifests into the app bundle during builds. |
+| `scripts/update_build_metadata.sh` | Writes Git commit and final-build metadata into the built app Info.plist. |
 | `scripts/test_package_source_modes.py` | Checks Python package-source mode behavior. |
 
 ## Main App: `Palladium/`
@@ -72,6 +73,7 @@ Palladium/
 | `Views/Tabs/ConsoleTabView.swift` | In-app log console. |
 | `Views/Tabs/SettingsTabView.swift` | Settings tab container and navigation. |
 | `Views/Tabs/Settings/AfterDownloadSettingsView.swift` | Post-download settings screen. |
+| `Views/Tabs/Settings/AdvancedSettingsView.swift` | Advanced runtime settings screen. |
 | `Views/Tabs/Settings/AppearanceSettingsView.swift` | Appearance settings screen. |
 | `Views/Tabs/Settings/CookiesSettingsView.swift` | Cookie settings screen. |
 | `Views/Tabs/Settings/DownloadArgumentsSettingsView.swift` | Custom yt-dlp argument settings screen. |
@@ -100,12 +102,16 @@ Palladium/
 | `Services/Python/yt_dlp_flow.py` | Python flow that invokes yt-dlp for downloads. |
 | `Services/Python/palladium_ytdlp/__init__.py` | Python package marker and exports. |
 | `Services/Python/palladium_ytdlp/args.py` | Builds yt-dlp command arguments. |
-| `Services/Python/palladium_ytdlp/entrypoints.py` | Python entry points called from Swift. |
+| `Services/Python/palladium_ytdlp/entrypoints.py` | Stable public Python entry point facade used by Swift. |
 | `Services/Python/palladium_ytdlp/ffmpeg_bridge.py` | Connects Python download work to FFmpeg. |
 | `Services/Python/palladium_ytdlp/files.py` | Download file and path helpers. |
+| `Services/Python/palladium_ytdlp/gallery.py` | gallery-dl installation, resolution, and download flows. |
+| `Services/Python/palladium_ytdlp/maintenance.py` | Python runtime package maintenance flow. |
 | `Services/Python/palladium_ytdlp/packages.py` | Python package installation and source helpers. |
+| `Services/Python/palladium_ytdlp/runtime.py` | Runtime reset, module invalidation, and cancellation helpers. |
 | `Services/Python/palladium_ytdlp/shared.py` | Shared Python helpers and constants. |
 | `Services/Python/palladium_ytdlp/webkit_jsi.py` | WebKit JavaScript integration used by yt-dlp. |
+| `Services/Python/palladium_ytdlp/ytdlp.py` | yt-dlp download flow and playlist progress tracking. |
 
 ### Resources
 
@@ -134,6 +140,7 @@ Palladium/
 
 | Path | Purpose |
 | --- | --- |
+| `docs/ALLOWLISTS.md` | URL allowlist format and configuration instructions. |
 | `docs/BUILD.md` | Local dependency setup and Xcode build instructions. |
 | `docs/STRUCTURE.md` | This project map. |
 | `privacy-manifests/python/_hashlib.xcprivacy` | Required-reason API declaration for Python's hashlib module. |

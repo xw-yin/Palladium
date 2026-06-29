@@ -178,6 +178,7 @@
 				82BF06D72F57630001333331 /* Install Python Runtime */,
 				82BF06D02F5762BC00133331 /* Embed Frameworks */,
 				8256E3B72F57A8970067DF6E /* Embed Foundation Extensions */,
+				82BF06D82F5CA10001333331 /* Update Build Metadata */,
 			);
 			buildRules = (
 			);
@@ -204,7 +205,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					8256E3AB2F57A8960067DF6E = {
 						CreatedOnToolsVersion = 26.2;
@@ -274,6 +275,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "sh \"$PROJECT_DIR/scripts/install_python_runtime.sh\"\n";
+		};
+		82BF06D82F5CA10001333331 /* Update Build Metadata */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/.git/HEAD",
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Update Build Metadata";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/build_metadata.stamp",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$PROJECT_DIR/scripts/update_build_metadata.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -376,6 +399,7 @@
 			baseConfigurationReference = 82BF06D42F5762DD00133331 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				APP_BUILD = 0;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -444,6 +468,7 @@
 			baseConfigurationReference = 82BF06D42F5762DD00133331 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				APP_BUILD = 0;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;

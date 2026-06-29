@@ -42,6 +42,8 @@ struct ContentView: View {
 
     static let presetDefaultsKey = "palladium.selectedPreset"
     static let customArgsDefaultsKey = "palladium.customArgs"
+    static let showCustomDownloadOptionDefaultsKey = "palladium.showCustomDownloadOption"
+    static let downloadPresetSettingsDefaultsKey = "palladium.downloadPresetSettings"
     static let extraArgsDefaultsKey = "palladium.extraArgs"
     static let afterDownloadBehaviorDefaultsKey = "palladium.afterDownloadBehavior"
     static let askUserAfterDownloadDefaultsKey = "palladium.askUserAfterDownload"
@@ -75,6 +77,7 @@ struct ContentView: View {
     static let packageSourceModeDefaultsKey = "palladium.packageSourceMode"
     static let customPackageSpecsDefaultsKey = "palladium.customPackageSpecs"
     static let downloadEngineDefaultsKey = "palladium.downloadEngine"
+    static let disableWebKitJSIPatchDefaultsKey = "palladium.disableWebKitJSIPatch"
     static let defaultLinkHistoryLimit = 10
     static let maxLinkHistoryLimit = 50
 
@@ -87,6 +90,7 @@ struct ContentView: View {
     @State var downloadErrorText: String?
     @State var selectedPreset: DownloadPreset
     @State var customArgsText: String
+    @State var downloadPresetSettings: [DownloadPresetSetting]
     @State var extraArgsText: String
     @State var afterDownloadBehavior: AfterDownloadBehavior
     @State var notificationsEnabled: Bool
@@ -130,6 +134,7 @@ struct ContentView: View {
     @State var autoUpdatePackagesOnLaunch: Bool
     @State var packageSourceMode: PackageSourceMode
     @State var customPackageSpecsText: String
+    @State var disableWebKitJSIPatch: Bool
     @State var storageSummary: StorageManagementSummary = .empty
     @StateObject var consoleLogStore: ConsoleLogStore
     @State var completedDownloadResult: CompletedDownloadResult?
@@ -152,11 +157,17 @@ struct ContentView: View {
     @State var ffmpegProgressDurationSeconds: Double?
     @State var pendingDownloadProgressLine = ""
     @State var isInstallingPackagesDuringDownload = false
+    @State var galleryDownloadExpectedCount = 0
+    @State var galleryDownloadCompletedCount = 0
+    @State var galleryDownloadOutputDirectory: String?
+    @State var galleryDownloadedOutputPaths = Set<String>()
     @State var pendingConsoleChunks = ""
     @State var isConsoleFlushScheduled = false
     @State var keyboardDismissTapInstalled = false
     @State var showShareSheetDownloadPicker = false
     @State var shareSheetURL = ""
+    @State var pendingSharedDownloadURL = ""
+    @State var pendingSharedDownloadPreset: DownloadPreset?
     @State var lastConsumedShortcutRequestID: UUID?
     @State var downloadEngine: DownloadEngine
 
@@ -166,18 +177,28 @@ struct ContentView: View {
         return engine
     }
 
+    @State var galleryItems: [GalleryItem] = []
+    @State var selectedGalleryItemIndices = Set<Int>()
+    @State var showGalleryPicker = false
+    @State var isResolvingGallery = false
+
     init() {
         let rememberPreset = Self.loadRememberSelectedPreset()
+        let downloadPresetSettings = Self.loadDownloadPresetSettings()
+        let visiblePresets = DownloadOptions.visiblePresets(from: downloadPresetSettings)
+        let selectedPreset = Self.loadSelectedPreset(rememberSelection: rememberPreset)
+        let shareSheetDownloadMode = Self.loadShareSheetDownloadMode()
         _urlText = State(initialValue: Self.isDebuggerAttached() ? "https://www.youtube.com/watch?v=jNQXAC9IVRw" : "")
         _downloadEngine = State(initialValue: Self.loadDownloadEngine())
-        _selectedPreset = State(initialValue: Self.loadSelectedPreset(rememberSelection: rememberPreset))
+        _selectedPreset = State(initialValue: visiblePresets.contains(selectedPreset) ? selectedPreset : (visiblePresets.first ?? .autoVideo))
         _customArgsText = State(initialValue: Self.loadCustomArgs())
+        _downloadPresetSettings = State(initialValue: downloadPresetSettings)
         _extraArgsText = State(initialValue: Self.loadExtraArgs())
         _afterDownloadBehavior = State(initialValue: Self.loadAfterDownloadBehavior())
         _notificationsEnabled = State(initialValue: Self.loadNotificationsEnabled())
         _rememberSelectedPreset = State(initialValue: rememberPreset)
         _autoDownloadOnPaste = State(initialValue: Self.loadAutoDownloadOnPaste())
-        _shareSheetDownloadMode = State(initialValue: Self.loadShareSheetDownloadMode())
+        _shareSheetDownloadMode = State(initialValue: Self.clampShareSheetMode(shareSheetDownloadMode, visiblePresets: visiblePresets))
         let restoreDefaults = Self.loadRestoreDownloadDefaults()
         let defPlaylist = Self.loadDefaultDownloadPlaylist()
         let defSubtitles = Self.loadDefaultDownloadSubtitles()
@@ -210,6 +231,7 @@ struct ContentView: View {
         _autoUpdatePackagesOnLaunch = State(initialValue: Self.loadAutoUpdatePackagesOnLaunch())
         _packageSourceMode = State(initialValue: Self.loadPackageSourceMode())
         _customPackageSpecsText = State(initialValue: Self.loadCustomPackageSpecsText())
+        _disableWebKitJSIPatch = State(initialValue: Self.loadDisableWebKitJSIPatch())
         _consoleLogStore = StateObject(wrappedValue: ConsoleLogStore())
     }
 
@@ -221,6 +243,7 @@ struct ContentView: View {
                     statusText: $statusText,
                     urlText: $urlText,
                     selectedPreset: $selectedPreset,
+                    visibleDownloadPresets: visibleDownloadPresets,
                     downloadPlaylist: $downloadPlaylist,
                     downloadSubtitles: $downloadSubtitles,
                     embedThumbnail: $embedThumbnail,
@@ -240,7 +263,12 @@ struct ContentView: View {
                     historyEntries: linkHistoryEntries,
                     onSelectHistoryEntry: handleHistoryEntrySelection,
                     onDeleteHistoryEntry: removeHistoryEntry,
-                    onCopyHistoryLink: copyHistoryLink
+                    onCopyHistoryLink: copyHistoryLink,
+                    galleryItems: galleryItems,
+                    selectedGalleryItemIndices: $selectedGalleryItemIndices,
+                    showGalleryPicker: $showGalleryPicker,
+                    isResolvingGallery: isResolvingGallery,
+                    onDownloadGallerySelection: { runDownloadFlow(gallerySelectionOverride: selectedGalleryItemIndices) }
                 )
                 .tabItem {
                     Label(String(localized: "tab.download"), systemImage: "arrow.down.circle")
@@ -270,6 +298,7 @@ struct ContentView: View {
                     autoDownloadOnPaste: $autoDownloadOnPaste,
                     autoRetryFailedDownloads: $autoRetryFailedDownloads,
                     detailedProgressEnabled: $detailedProgressEnabled,
+                    downloadPresetSettings: $downloadPresetSettings,
                     shareSheetDownloadMode: $shareSheetDownloadMode,
                     linkHistoryEnabled: $linkHistoryEnabled,
                     linkHistoryLimit: $linkHistoryLimit,
@@ -286,6 +315,7 @@ struct ContentView: View {
                     storageSummary: storageSummary,
                     packageSourceMode: $packageSourceMode,
                     customPackageSpecsText: $customPackageSpecsText,
+                    disableWebKitJSIPatch: $disableWebKitJSIPatch,
                     packageStatusText: packageStatusText,
                     versionsText: versionsText,
                     updatesSummaryText: packageUpdatesSummaryText,
@@ -298,6 +328,7 @@ struct ContentView: View {
                     onRefreshVersions: refreshPackageVersions,
                     onCancelPackages: cancelPackageFlow,
                     onUpdatePackages: updatePackages,
+                    onReinstallPackages: reinstallPackages,
                     onCustomUpdatePackages: updatePackagesWithCustomVersions,
                     onFetchPackageVersions: fetchPackageIndexVersions,
                     onOpenPackageManager: loadPackageStatusIfNeeded,
@@ -359,6 +390,16 @@ struct ContentView: View {
             persistPreferences()
         }
         .onChange(of: extraArgsText, initial: false) {
+            persistPreferences()
+        }
+        .onChange(of: downloadPresetSettings, initial: false) {
+            let visiblePresets = DownloadOptions.visiblePresets(from: downloadPresetSettings)
+            if !visiblePresets.contains(selectedPreset) {
+                selectedPreset = visiblePresets.first ?? .autoVideo
+            }
+            if let mode = shareSheetDownloadMode.preset, !visiblePresets.contains(mode) {
+                shareSheetDownloadMode = .ask
+            }
             persistPreferences()
         }
         .onChange(of: afterDownloadBehavior, initial: false) {
@@ -454,6 +495,9 @@ struct ContentView: View {
         .onChange(of: customPackageSpecsText, initial: false) {
             persistPreferences()
         }
+        .onChange(of: disableWebKitJSIPatch, initial: false) {
+            persistPreferences()
+        }
         .sheet(item: $sharePayload) { payload in
             ShareSheet(activityItems: payload.activityItems)
         }
@@ -509,6 +553,7 @@ struct ContentView: View {
         }
         .onChange(of: isPackageRunning, initial: true) { _, _ in
             syncIdleTimerDisabled()
+            consumePendingSharedDownloadIfNeeded()
         }
         .onChange(of: scenePhase, initial: true) { _, newPhase in
             guard newPhase == .active else { return }

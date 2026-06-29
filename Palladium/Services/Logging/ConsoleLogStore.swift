@@ -59,8 +59,8 @@ final class ConsoleLogStore: ObservableObject {
 
         Task {
             await writer.prepare()
+            await writer.append(Self.buildMetadataLogLine())
         }
-
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("PalladiumLogNotification"),
             object: nil,
@@ -71,6 +71,8 @@ final class ConsoleLogStore: ObservableObject {
                 self.appendChunk(message + "\n")
             }
         }
+
+        appendInMemory(Self.buildMetadataLogLine(), sourceHint: .app)
     }
 
     var entryCount: Int {
@@ -104,9 +106,12 @@ final class ConsoleLogStore: ObservableObject {
         entries.removeAll(keepingCapacity: false)
         pendingPartialLine = ""
         nextEntryID = 0
+        let metadataLogLine = Self.buildMetadataLogLine()
+        appendInMemory(metadataLogLine, sourceHint: .app)
 
         Task {
             await writer.clearAll()
+            await writer.append(metadataLogLine)
         }
     }
 
@@ -163,7 +168,9 @@ final class ConsoleLogStore: ObservableObject {
 
         if line.contains("[download]")
             || line.contains("[Merger]")
-            || line.contains("[ExtractAudio]") {
+            || line.contains("[ExtractAudio]")
+            || line.contains("[palladium][gallery-progress]")
+            || lower.contains("gallery-dl") {
             return .download
         }
 
@@ -182,6 +189,19 @@ final class ConsoleLogStore: ObservableObject {
         }
 
         return fileManager.temporaryDirectory.appendingPathComponent("PalladiumLogs", isDirectory: true)
+    }
+
+    private static func buildMetadataLogLine() -> String {
+        let bundle = Bundle.main
+        let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let commitID = bundle.infoDictionary?["GIT_COMMIT_ID"] as? String ?? "Unknown"
+        let rawFinalValue = bundle.object(forInfoDictionaryKey: "APP_FINAL")
+        let normalizedFinalValue = String(describing: rawFinalValue ?? false)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let appFinalFlag = normalizedFinalValue == "true" || normalizedFinalValue == "1" ? "1" : "0"
+
+        return "Palladium version(\(version)/\(appFinalFlag)/\(commitID))\n"
     }
 }
 
