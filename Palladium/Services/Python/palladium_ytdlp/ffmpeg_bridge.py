@@ -6,6 +6,8 @@ import os
 import re
 import shlex
 import subprocess
+import sys
+import tempfile
 import time
 import urllib.parse
 from dataclasses import dataclass
@@ -54,8 +56,29 @@ def bridge_ffmpeg_output_path(args):
     for arg in reversed(args):
         if arg in ("-nostats", "-nostdin"):
             continue
-        return arg
+        return normalize_ffmpeg_args([arg])[0]
     return None
+
+
+def parse_bridge_json_object(output_text):
+    text = str(output_text or "")
+    decoder = json.JSONDecoder()
+    last_error = None
+
+    for index, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError as error:
+            last_error = error
+            continue
+        if isinstance(value, dict):
+            return value
+
+    if last_error is not None:
+        raise last_error
+    raise json.JSONDecodeError("No JSON object found", text, 0)
 
 
 def clean_bridge_version(raw_version):
@@ -97,6 +120,19 @@ def bridge_lists_bsf(output_text, bsf_name):
         if line.strip() == target:
             return True
     return False
+
+
+def audio_codec_from_metadata(metadata):
+    if not isinstance(metadata, dict):
+        return None
+
+    for stream in metadata.get("streams") or []:
+        if not isinstance(stream, dict) or stream.get("codec_type") != "audio":
+            continue
+        codec_name = str(stream.get("codec_name") or "").strip()
+        if codec_name:
+            return codec_name
+    return None
 
 
 def log_bridge_output(stderr_text):
@@ -174,6 +210,11 @@ class SwiftFFmpegBridge:
 
     def _invoke(self, tool, args):
         payload = json.dumps({"tool": tool, "args": [str(arg) for arg in args]}).encode("utf-8")
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except Exception:
+                pass
         response_ptr = self._run(payload)
         if not response_ptr:
             raise RuntimeError("swift ffmpeg bridge returned null pointer")
@@ -204,20 +245,32 @@ class SwiftFFmpegBridge:
         return self._invoke("ffprobe", prepare_bridge_ffmpeg_args("ffprobe", args))
 
     def probe_metadata(self, path, opts=None):
+        output_fd, output_path = tempfile.mkstemp(prefix="palladium-ffprobe-", suffix=".json")
+        os.close(output_fd)
         command = [
             "-hide_banner",
+            "-loglevel",
+            "error",
             "-show_format",
             "-show_streams",
             "-print_format",
-            "json",
+            "json=compact=1",
+            "-o",
+            output_path,
             *(str(opt) for opt in (opts or [])),
             str(path),
         ]
-        result = self.run_ffprobe(command)
         try:
-            parsed = json.loads(result.stdout)
+            self.run_ffprobe(command)
+            with open(output_path, encoding="utf-8") as output_file:
+                parsed = json.load(output_file)
         except Exception as error:
             raise RuntimeError(f"ffprobe metadata parse failed for {path}: {error}") from error
+        finally:
+            try:
+                os.unlink(output_path)
+            except OSError:
+                pass
         if not isinstance(parsed, dict):
             raise RuntimeError(f"ffprobe metadata probe returned unexpected payload for {path}")
         return parsed
@@ -228,18 +281,27 @@ class SwiftFFmpegBridge:
 
         versions = {"ffmpeg": None, "ffprobe": None}
         features = {}
+        ffmpeg_version_text = ""
+        ffmpeg_bsfs_text = ""
 
         try:
-            ffmpeg_result = self.run_ffmpeg(["-bsfs"])
-            ffmpeg_text = ffmpeg_result.combined_output
-            versions["ffmpeg"] = parse_bridge_executable_version(ffmpeg_text, "ffmpeg")
-            features = {
-                "fdk": "--enable-libfdk-aac" in ffmpeg_text,
-                "setts": "setts" in ffmpeg_text.splitlines(),
-                "needs_adtstoasc": bridge_lists_bsf(ffmpeg_text, "aac_adtstoasc"),
-            }
+            ffmpeg_version_result = self.run_ffmpeg(["-version"])
+            ffmpeg_version_text = ffmpeg_version_result.combined_output
+            versions["ffmpeg"] = parse_bridge_executable_version(ffmpeg_version_text, "ffmpeg")
+        except Exception as error:
+            print(f"[palladium][ffmpeg-bridge] ffmpeg version probe failed: {error}")
+
+        try:
+            ffmpeg_bsfs_result = self.run_ffmpeg(["-bsfs"])
+            ffmpeg_bsfs_text = ffmpeg_bsfs_result.combined_output
         except Exception as error:
             print(f"[palladium][ffmpeg-bridge] ffmpeg capability probe failed: {error}")
+
+        features = {
+            "fdk": "--enable-libfdk-aac" in ffmpeg_version_text,
+            "setts": bridge_lists_bsf(ffmpeg_bsfs_text, "setts"),
+            "needs_adtstoasc": bridge_lists_bsf(ffmpeg_bsfs_text, "aac_adtstoasc"),
+        }
 
         try:
             ffprobe_result = self.run_ffprobe(["-version"])
@@ -322,6 +384,7 @@ def patch_ytdlp_for_swiftffmpeg(adapter):
     original_ffmpeg_popen = getattr(ydl_ffmpeg_pp, "Popen", None)
     original_get_ffmpeg_version = getattr(ydl_ffmpeg_pp.FFmpegPostProcessor, "_get_ffmpeg_version", None)
     original_get_metadata_object = getattr(ydl_ffmpeg_pp.FFmpegPostProcessor, "get_metadata_object", None)
+    original_get_audio_codec = getattr(ydl_ffmpeg_pp.FFmpegPostProcessor, "get_audio_codec", None)
 
     class BridgePopen:
         def __init__(self, args, *remaining, **kwargs):
@@ -464,6 +527,20 @@ def patch_ytdlp_for_swiftffmpeg(adapter):
                 raise ydl_utils.PostProcessingError(f"Unable to extract metadata with ffprobe: {error}") from error
         return original_get_metadata_object(self, path, opts or [])
 
+    def patched_get_audio_codec(self, path):
+        if getattr(self, "probe_executable", None) == "ffprobe":
+            try:
+                metadata = adapter.probe_metadata(path)
+                codec_name = audio_codec_from_metadata(metadata)
+                if codec_name:
+                    return codec_name
+                self.write_debug(f"SwiftFFmpeg metadata contained no audio stream for {path}")
+                return None
+            except Exception as error:
+                self.write_debug(f"SwiftFFmpeg audio codec probe failed for {path}: {error}")
+                return None
+        return original_get_audio_codec(self, path)
+
     YDLClass.to_screen = patched_to_screen
     FileDownloader.report_progress = patched_report_progress
     if original_public_utils_popen is not None:
@@ -477,6 +554,8 @@ def patch_ytdlp_for_swiftffmpeg(adapter):
         ydl_ffmpeg_pp.FFmpegPostProcessor._get_ffmpeg_version = patched_get_ffmpeg_version
     if original_get_metadata_object is not None:
         ydl_ffmpeg_pp.FFmpegPostProcessor.get_metadata_object = patched_get_metadata_object
+    if original_get_audio_codec is not None:
+        ydl_ffmpeg_pp.FFmpegPostProcessor.get_audio_codec = patched_get_audio_codec
 
     try:
         print("[palladium][ffmpeg-bridge] yt-dlp bridge adapter enabled")
@@ -495,3 +574,5 @@ def patch_ytdlp_for_swiftffmpeg(adapter):
             ydl_ffmpeg_pp.FFmpegPostProcessor._get_ffmpeg_version = original_get_ffmpeg_version
         if original_get_metadata_object is not None:
             ydl_ffmpeg_pp.FFmpegPostProcessor.get_metadata_object = original_get_metadata_object
+        if original_get_audio_codec is not None:
+            ydl_ffmpeg_pp.FFmpegPostProcessor.get_audio_codec = original_get_audio_codec

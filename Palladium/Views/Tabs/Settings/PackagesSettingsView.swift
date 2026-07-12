@@ -2,30 +2,34 @@ import SwiftUI
 
 struct PackagesSettingsView: View {
     private static let latestSelectionToken = "__latest__"
+    private static let customUpdatePackageNames = PackageSourceDefaults.lockablePackageNames
 
     let packageStatusText: String
     @Binding var checkPackageUpdatesOnLaunch: Bool
     @Binding var autoUpdatePackagesOnLaunch: Bool
     @Binding var packageSourceMode: PackageSourceMode
     @Binding var customPackageSpecsText: String
+    @Binding var lockedPackageVersions: [String: String]
     let versionsText: String
     let updatesSummaryText: String
     let updatesAvailable: Bool
+    let runtimePackagesMissing: Bool
     let availablePackageVersions: [String: [String]]
     let isLoadingPackageVersions: Bool
     let isRunning: Bool
     let onRefreshVersions: () -> Void
     let onCancel: () -> Void
     let onUpdatePackages: () -> Void
-    let onCustomUpdatePackages: (_ ytDlpVersion: String?, _ webkitJSIVersion: String?, _ galleryDLVersion: String?, _ pipVersion: String?) -> Void
+    let onInstallPayloadZip: (_ sourceURL: URL) -> Void
+    let onRestorePipPackages: () -> Void
+    let onCustomUpdatePackages: (_ versions: [String: String]) -> Void
     let onFetchPackageVersions: () -> Void
     let onAppear: () -> Void
 
     @State private var showCustomVersionSheet = false
-    @State private var ytDlpSelectedVersion = Self.latestSelectionToken
-    @State private var webkitJSISelectedVersion = Self.latestSelectionToken
-    @State private var galleryDLSelectedVersion = Self.latestSelectionToken
-    @State private var pipSelectedVersion = Self.latestSelectionToken
+    @State private var showRestorePipConfirmation = false
+    @State private var selectedPackageVersions: [String: String] = [:]
+    @State private var selectedLockedPackages = Set<String>()
 
     var body: some View {
         Form {
@@ -36,7 +40,8 @@ struct PackagesSettingsView: View {
                         autoUpdatePackagesOnLaunch: $autoUpdatePackagesOnLaunch,
                         packageSourceMode: $packageSourceMode,
                         customPackageSpecsText: $customPackageSpecsText,
-                        isRunning: isRunning
+                        isRunning: isRunning,
+                        onInstallPayloadZip: onInstallPayloadZip
                     )
                 } label: {
                     Label("settings.packages.manager.title", systemImage: "gearshape")
@@ -67,6 +72,14 @@ struct PackagesSettingsView: View {
                 Text(updatesSummaryText)
                     .font(.system(.footnote, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if !sortedLockedPackageNames.isEmpty {
+                Section("packages.locked_versions.title") {
+                    ForEach(sortedLockedPackageNames, id: \.self) { packageName in
+                        lockedPackageRow(for: packageName)
+                    }
+                }
             }
 
             Section("packages.actions.title") {
@@ -107,6 +120,19 @@ struct PackagesSettingsView: View {
                 Text("packages.update.long_press_help")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button(role: .destructive) {
+                    showRestorePipConfirmation = true
+                } label: {
+                    Text("packages.restore_pip")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isRunning)
+
+                Text("packages.restore_pip.help")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("settings.packages.title")
@@ -115,37 +141,31 @@ struct PackagesSettingsView: View {
         .sheet(isPresented: $showCustomVersionSheet) {
             customVersionSheet
         }
+        .alert("packages.restore_pip.confirm.title", isPresented: $showRestorePipConfirmation) {
+            Button("common.cancel", role: .cancel) {}
+            Button("packages.restore_pip.confirm", role: .destructive) {
+                onRestorePipPackages()
+            }
+        } message: {
+            Text("packages.restore_pip.confirm.message")
+        }
     }
 
     private var canRequestPackageUpdate: Bool {
         guard !isRunning else { return false }
-        return updatesAvailable || packageSourceMode == .custom
+        return updatesAvailable || runtimePackagesMissing || packageSourceMode == .custom
     }
 
     private var customVersionSheet: some View {
         NavigationStack {
             Form {
                 Section("packages.custom_update.targets") {
-                    packageVersionPicker(
-                        title: "yt-dlp",
-                        packageName: "yt-dlp",
-                        selection: $ytDlpSelectedVersion
-                    )
-                    packageVersionPicker(
-                        title: "yt-dlp-apple-webkit-jsi",
-                        packageName: "yt-dlp-apple-webkit-jsi",
-                        selection: $webkitJSISelectedVersion
-                    )
-                    packageVersionPicker(
-                        title: "gallery-dl",
-                        packageName: "gallery-dl",
-                        selection: $galleryDLSelectedVersion
-                    )
-                    packageVersionPicker(
-                        title: "pip",
-                        packageName: "pip",
-                        selection: $pipSelectedVersion
-                    )
+                    ForEach(Self.customUpdatePackageNames, id: \.self) { packageName in
+                        packageVersionPicker(
+                            packageName: packageName,
+                            selection: selectedVersionBinding(for: packageName)
+                        )
+                    }
                 }
 
                 Section("packages.custom_update.source") {
@@ -183,17 +203,10 @@ struct PackagesSettingsView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("common.apply") {
-                        let ytDlp = normalizeSelection(ytDlpSelectedVersion)
-                        let webkit = normalizeSelection(webkitJSISelectedVersion)
-                        let galleryDL = normalizeSelection(galleryDLSelectedVersion)
-                        let pip = normalizeSelection(pipSelectedVersion)
-                        onCustomUpdatePackages(ytDlp, webkit, galleryDL, pip)
+                        applyCustomVersionSelection()
                         showCustomVersionSheet = false
                     }
-                    .disabled(normalizeSelection(ytDlpSelectedVersion) == nil &&
-                              normalizeSelection(webkitJSISelectedVersion) == nil &&
-                              normalizeSelection(galleryDLSelectedVersion) == nil &&
-                              normalizeSelection(pipSelectedVersion) == nil)
+                    .disabled(!canApplyCustomVersionSelection)
                 }
             }
         }
@@ -201,10 +214,8 @@ struct PackagesSettingsView: View {
     }
 
     private func prepareCustomVersionEditor() {
-        ytDlpSelectedVersion = Self.latestSelectionToken
-        webkitJSISelectedVersion = Self.latestSelectionToken
-        galleryDLSelectedVersion = Self.latestSelectionToken
-        pipSelectedVersion = Self.latestSelectionToken
+        selectedPackageVersions = lockedPackageVersions
+        selectedLockedPackages = Set(lockedPackageVersions.keys)
     }
 
     private func installedVersion(for packageName: String) -> String? {
@@ -231,34 +242,114 @@ struct PackagesSettingsView: View {
         return trimmed
     }
 
+    private func selectedVersionBinding(for packageName: String) -> Binding<String> {
+        Binding(
+            get: { selectedPackageVersions[packageName] ?? Self.latestSelectionToken },
+            set: { newValue in
+                selectedPackageVersions[packageName] = newValue
+                if normalizeSelection(newValue) == nil {
+                    selectedLockedPackages.remove(packageName)
+                }
+            }
+        )
+    }
+
+    private func selectedCustomVersions() -> [String: String] {
+        var versions: [String: String] = [:]
+        for packageName in Self.customUpdatePackageNames {
+            let selection = selectedPackageVersions[packageName] ?? Self.latestSelectionToken
+            if let version = normalizeSelection(selection) {
+                let existingLock = lockedPackageVersions[packageName] ?? ""
+                guard selectedLockedPackages.contains(packageName) || existingLock != version else {
+                    continue
+                }
+                versions[packageName] = version
+            }
+        }
+        return versions
+    }
+
     @ViewBuilder
     private func packageVersionPicker(
-        title: String,
         packageName: String,
         selection: Binding<String>
     ) -> some View {
         let options = availableVersions(for: packageName)
-        Picker(title, selection: selection) {
-            Text("packages.latest")
-                .tag(Self.latestSelectionToken)
-            ForEach(options, id: \.self) { version in
-                Text(version).tag(version)
+        HStack(spacing: 10) {
+            Picker(selection: selection) {
+                Text("packages.latest")
+                    .tag(Self.latestSelectionToken)
+                ForEach(options, id: \.self) { version in
+                    Text(version).tag(version)
+                }
+            } label: {
+                Text(packageName)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel(packageName)
             }
+            .pickerStyle(.menu)
+            .onChange(of: availablePackageVersions[packageName]?.count ?? 0, initial: false) {
+                let current = selection.wrappedValue
+                if current == Self.latestSelectionToken {
+                    return
+                }
+                if !options.contains(current) {
+                    selection.wrappedValue = Self.latestSelectionToken
+                }
+            }
+
+            Button {
+                toggleSelectedPackageLock(packageName)
+            } label: {
+                Image(systemName: selectedLockedPackages.contains(packageName) ? "lock.fill" : "lock")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.borderless)
+            .disabled(!canToggleSelectedPackageLock(packageName))
+            .accessibilityLabel(lockAccessibilityLabel(for: packageName))
         }
-        .pickerStyle(.menu)
-        .onChange(of: availablePackageVersions[packageName]?.count ?? 0, initial: false) {
-            let current = selection.wrappedValue
-            if current == Self.latestSelectionToken {
-                return
-            }
-            if !options.contains(current) {
-                selection.wrappedValue = Self.latestSelectionToken
+    }
+
+    @ViewBuilder
+    private func lockedPackageRow(for packageName: String) -> some View {
+        if let version = lockedPackageVersions[packageName], !version.isEmpty {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(packageName)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .accessibilityLabel(packageName)
+                    Text(version)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    lockedPackageVersions.removeValue(forKey: packageName)
+                } label: {
+                    Image(systemName: "lock.open")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.borderless)
+                .disabled(isRunning)
+                .accessibilityLabel(
+                    String(format: String(localized: "packages.custom_update.unlock_package"), packageName)
+                )
             }
         }
     }
 
     private func availableVersions(for packageName: String) -> [String] {
         var values = availablePackageVersions[packageName] ?? []
+        let selection = selectedPackageVersions[packageName] ?? Self.latestSelectionToken
+        if let selected = normalizeSelection(selection),
+           !values.contains(selected) {
+            values.insert(selected, at: 0)
+        }
         if let installed = installedVersion(for: packageName),
            !installed.isEmpty,
            installed.lowercased() != "not installed",
@@ -268,9 +359,70 @@ struct PackagesSettingsView: View {
         return values
     }
 
+    private var sortedLockedPackageNames: [String] {
+        Self.customUpdatePackageNames.filter { packageName in
+            guard let version = lockedPackageVersions[packageName] else { return false }
+            return !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var canApplyCustomVersionSelection: Bool {
+        !selectedCustomVersions().isEmpty || pendingLockedPackageVersions() != lockedPackageVersions
+    }
+
+    private func pendingLockedPackageVersions() -> [String: String] {
+        var versions: [String: String] = [:]
+        for packageName in Self.customUpdatePackageNames where selectedLockedPackages.contains(packageName) {
+            let selection = selectedPackageVersions[packageName] ?? Self.latestSelectionToken
+            if let version = normalizeSelection(selection) {
+                versions[packageName] = version
+            }
+        }
+        return versions
+    }
+
+    private func applyCustomVersionSelection() {
+        let customVersions = selectedCustomVersions()
+        lockedPackageVersions = pendingLockedPackageVersions()
+        if !customVersions.isEmpty {
+            onCustomUpdatePackages(customVersions)
+        }
+    }
+
+    private func canToggleSelectedPackageLock(_ packageName: String) -> Bool {
+        if selectedLockedPackages.contains(packageName) {
+            return true
+        }
+        let selection = selectedPackageVersions[packageName] ?? Self.latestSelectionToken
+        return normalizeSelection(selection) != nil
+    }
+
+    private func toggleSelectedPackageLock(_ packageName: String) {
+        if selectedLockedPackages.contains(packageName) {
+            selectedLockedPackages.remove(packageName)
+            return
+        }
+        let selection = selectedPackageVersions[packageName] ?? Self.latestSelectionToken
+        guard normalizeSelection(selection) != nil else { return }
+        selectedLockedPackages.insert(packageName)
+    }
+
+    private func lockAccessibilityLabel(for packageName: String) -> String {
+        if selectedLockedPackages.contains(packageName) {
+            return String(format: String(localized: "packages.custom_update.unlock_package"), packageName)
+        }
+        return String(format: String(localized: "packages.custom_update.lock_package"), packageName)
+    }
+
     private var progressStatusMessage: String {
         if packageStatusText == "updating" {
             return String(localized: "packages.status.updating")
+        }
+        if packageStatusText == "installing" {
+            return String(localized: "packages.status.installing")
+        }
+        if packageStatusText == "restoring" {
+            return String(localized: "packages.status.restoring")
         }
         if packageStatusText == "indexing" {
             return String(localized: "packages.status.loading_index")

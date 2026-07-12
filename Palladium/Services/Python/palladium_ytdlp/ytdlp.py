@@ -20,7 +20,7 @@ from .ffmpeg_bridge import (
     is_cancel_requested,
     patch_ytdlp_for_swiftffmpeg,
 )
-from .files import cleanup_temp_download_files, detect_downloaded_files, has_primary_media_file
+from .files import cleanup_temp_download_files, detect_downloaded_files
 from .packages import (
     build_pip_install_args,
     collect_versions,
@@ -28,12 +28,71 @@ from .packages import (
     is_package_installed,
     parse_package_source,
 )
+from .patching import apply_youtube_patches
 from .runtime import raise_if_cancel_requested
-from .shared import TailBuffer, Tee, open_live_log_stream
-from .webkit_jsi import ensure_safe_webkit_jsi_runtime
+from .shared import TailBuffer, Tee, YTDLP_RUNTIME_PACKAGES, open_live_log_stream
 
 
 PLAYLIST_PROGRESS_PREFIX = "[palladium][playlist-progress] "
+
+
+def list_yt_dlp_formats(download_url, cookie_file_path=""):
+    """Return the formats exposed by yt-dlp without downloading any media."""
+    output = TailBuffer()
+    try:
+        import yt_dlp
+
+        options = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "nocheckcertificate": True,
+        }
+        cookie_path = str(cookie_file_path or "").strip()
+        if cookie_path and os.path.isfile(cookie_path):
+            options["cookiefile"] = cookie_path
+
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            with yt_dlp.YoutubeDL(options) as downloader:
+                info = downloader.extract_info(str(download_url).strip(), download=False)
+
+        formats = []
+        for item in info.get("formats") or []:
+            format_id = str(item.get("format_id") or "").strip()
+            if not format_id:
+                continue
+            formats.append({
+                "id": format_id,
+                "extension": str(item.get("ext") or "").strip(),
+                "resolution": str(item.get("resolution") or "").strip(),
+                "width": item.get("width"),
+                "height": item.get("height"),
+                "fps": item.get("fps"),
+                "video_bitrate": item.get("vbr"),
+                "audio_bitrate": item.get("abr"),
+                "video_codec": str(item.get("vcodec") or "").strip(),
+                "audio_codec": str(item.get("acodec") or "").strip(),
+                "filesize": item.get("filesize") or item.get("filesize_approx"),
+                "note": str(item.get("format_note") or "").strip(),
+            })
+
+        return json.dumps({
+            "success": True,
+            "title": str(info.get("title") or "").strip(),
+            "formats": formats,
+            "output": output.getvalue(),
+            "error_message": None,
+        })
+    except BaseException as error:
+        traceback.print_exc(file=output)
+        return json.dumps({
+            "success": False,
+            "title": "",
+            "formats": [],
+            "output": output.getvalue(),
+            "error_message": str(error),
+        })
 
 
 class PlaylistProgressCollector:
@@ -467,44 +526,28 @@ def run_yt_dlp_flow(
                 os.makedirs(cache_dir, exist_ok=True)
                 print(f"[palladium] cache target: {cache_dir}")
 
-            needs_yt_dlp_install = False
-            needs_webkit_jsi_install = False
+            missing_runtime_packages = []
+            for package_name in YTDLP_RUNTIME_PACKAGES:
+                print(f"[palladium] checking {package_name} package metadata")
+                installed, version, source = is_package_installed(
+                    package_name,
+                    install_target=install_target,
+                )
+                if installed:
+                    print(f"[palladium] {package_name} already installed ({version} via {source})")
+                else:
+                    missing_runtime_packages.append(package_name)
+                    print(f"[palladium] {package_name} package missing")
 
-            print("[palladium] checking yt-dlp package metadata")
-            yt_dlp_installed, yt_dlp_version, yt_dlp_source = is_package_installed(
-                "yt-dlp",
-                install_target=install_target,
-            )
-            if yt_dlp_installed:
-                print(f"[palladium] yt-dlp already installed ({yt_dlp_version} via {yt_dlp_source})")
-            else:
-                needs_yt_dlp_install = True
-                print("[palladium] yt-dlp package missing")
-
-            print("[palladium] checking yt-dlp-apple-webkit-jsi package metadata")
-            webkit_jsi_installed, webkit_jsi_version, webkit_jsi_source = is_package_installed(
-                "yt-dlp-apple-webkit-jsi",
-                install_target=install_target,
-            )
-            if webkit_jsi_installed:
-                print(f"[palladium] yt-dlp-apple-webkit-jsi already installed ({webkit_jsi_version} via {webkit_jsi_source})")
-            else:
-                needs_webkit_jsi_install = True
-                print("[palladium] yt-dlp-apple-webkit-jsi missing")
-
-            if needs_yt_dlp_install or needs_webkit_jsi_install:
+            if missing_runtime_packages:
                 raise_if_cancel_requested(cancel_file_path, "[palladium] cancellation requested before pip install")
                 pip_attempted = True
                 pip_main = ensure_pip_entrypoint(install_target)
                 if pip_main is not None:
-                    packages = []
                     if package_source.get("mode") == "custom":
                         packages = list(package_source.get("custom_specs") or [])
                     else:
-                        if needs_yt_dlp_install:
-                            packages.append("yt-dlp")
-                        if needs_webkit_jsi_install:
-                            packages.append("yt-dlp-apple-webkit-jsi")
+                        packages = list(missing_runtime_packages)
 
                     try:
                         raise_if_cancel_requested(cancel_file_path, "[palladium] cancellation requested before pip install")
@@ -528,17 +571,14 @@ def run_yt_dlp_flow(
                     pip_exit_code = 1
 
                 installed_versions = collect_versions(install_target=install_target, allow_cache_fallback=False)
-                print(f"[palladium] yt-dlp after install: {installed_versions.get('yt-dlp', 'not installed')}")
-                print(
-                    "[palladium] yt-dlp-apple-webkit-jsi after install: "
-                    f"{installed_versions.get('yt-dlp-apple-webkit-jsi', 'not installed')}"
-                )
+                for package_name in YTDLP_RUNTIME_PACKAGES:
+                    print(
+                        f"[palladium] {package_name} after install: "
+                        f"{installed_versions.get(package_name, 'not installed')}"
+                    )
 
-            if package_source.get("skip_webkit_patch"):
-                print("[palladium] skipping webkit patch by configuration")
-            else:
-                raise_if_cancel_requested(cancel_file_path, "[palladium] cancellation requested before webkit patch")
-                ensure_safe_webkit_jsi_runtime(install_target)
+            raise_if_cancel_requested(cancel_file_path, "[palladium] cancellation requested before youtube patches")
+            apply_youtube_patches(install_target, package_source.get("patch_mode"))
 
             if not download_url:
                 print("[palladium] no URL provided")
@@ -703,11 +743,10 @@ def run_yt_dlp_flow(
                         if primary_downloaded_path:
                             print(f"[palladium] primary downloaded file: {primary_downloaded_path}")
                         if yt_exit_code != 0:
-                            if has_primary_media_file(downloaded_paths):
-                                print(f"[palladium] overriding yt-dlp exit code {yt_exit_code} because a media file exists")
-                                yt_exit_code = 0
-                            else:
-                                print(f"[palladium] keeping yt-dlp exit code {yt_exit_code} because only sidecar files were downloaded")
+                            print(
+                                f"[palladium] keeping yt-dlp exit code {yt_exit_code} "
+                                "because download or postprocessing failed"
+                            )
                     else:
                         print("[palladium] downloaded files not detected")
                 except Exception:

@@ -46,6 +46,72 @@ struct GalleryResolution: Sendable {
     let errorMessage: String?
 }
 
+struct YTDLPFormat: Identifiable, Hashable, Sendable {
+    let id: String
+    let fileExtension: String
+    let resolution: String
+    let width: Int?
+    let height: Int?
+    let framesPerSecond: Double?
+    let videoBitrate: Double?
+    let audioBitrate: Double?
+    let videoCodec: String
+    let audioCodec: String
+    let fileSize: Int64?
+    let note: String
+
+    var hasVideo: Bool { !videoCodec.isEmpty && videoCodec != "none" }
+    var hasAudio: Bool { !audioCodec.isEmpty && audioCodec != "none" }
+
+    var videoCodecDisplayName: String {
+        let codec = videoCodec.lowercased()
+        if codec.hasPrefix("avc1") || codec.hasPrefix("avc3") || codec.hasPrefix("h264") {
+            return "H.264"
+        }
+        if codec.hasPrefix("hvc1")
+            || codec.hasPrefix("hev1")
+            || codec.hasPrefix("hevc")
+            || codec.hasPrefix("h265") {
+            return "H.265"
+        }
+        return videoCodec
+    }
+
+    var isPhotosCompatible: Bool {
+        guard hasVideo, ["mp4", "mov", "m4v"].contains(fileExtension.lowercased()) else {
+            return false
+        }
+        let codec = videoCodec.lowercased()
+        let hasCompatibleVideoCodec = codec.hasPrefix("avc1")
+            || codec.hasPrefix("avc3")
+            || codec.hasPrefix("h264")
+            || codec.hasPrefix("hvc1")
+            || codec.hasPrefix("hev1")
+            || codec.hasPrefix("hevc")
+            || codec.hasPrefix("h265")
+        guard hasCompatibleVideoCodec else { return false }
+        guard hasAudio else { return true }
+        let audio = audioCodec.lowercased()
+        return audio.hasPrefix("mp4a") || audio.hasPrefix("aac")
+    }
+
+    var downloadSelector: String {
+        guard hasVideo && !hasAudio else { return id }
+        if isPhotosCompatible {
+            return "\(id)+bestaudio[ext=m4a]/\(id)+bestaudio/best"
+        }
+        return "\(id)+bestaudio/best"
+    }
+}
+
+struct YTDLPFormatResolution: Sendable {
+    let title: String
+    let formats: [YTDLPFormat]
+    let outputText: String
+    let success: Bool
+    let errorMessage: String?
+}
+
 enum PythonFlowRunner {
     private static var insertedScriptDirectories = Set<String>()
 
@@ -116,6 +182,27 @@ enum PythonFlowRunner {
         }
     }
 
+    static func resolveFormats(url: String, cookieFilePath: String?) async -> YTDLPFormatResolution {
+        await runOnPythonThread {
+            do {
+                let module = try loadYtDlpModule()
+                let function = try pythonMember(module, named: "list_yt_dlp_formats")
+                let result = try function.throwing.dynamicallyCall(
+                    withArguments: [url, cookieFilePath ?? ""]
+                )
+                return decodeFormatResolution(String(result) ?? "")
+            } catch {
+                return YTDLPFormatResolution(
+                    title: "",
+                    formats: [],
+                    outputText: String(describing: error),
+                    success: false,
+                    errorMessage: String(describing: error)
+                )
+            }
+        }
+    }
+
     static func executeGalleryDownloadFlow(
         url: String,
         selectionRange: String,
@@ -142,9 +229,10 @@ enum PythonFlowRunner {
     }
 
     static func executePackageFlow(
-        action: String,
+        action: PackageAction,
         customVersions: [String: String]? = nil,
         packageSourceJSON: String,
+        payloadZipPath: String? = nil,
         liveLogFD: Int32?
     ) async -> PythonFlowOutcome {
         await runOnPythonThread {
@@ -162,8 +250,15 @@ enum PythonFlowRunner {
                 let module = try loadYtDlpModule()
                 let function = try pythonMember(module, named: "run_package_maintenance")
                 let liveLogArgument: PythonObject = liveLogFD.map { PythonObject(Int($0)) } ?? Python.None
+                let payloadZipPathArgument = payloadZipPath ?? ""
                 let result = try function.throwing.dynamicallyCall(
-                    withArguments: [action, customVersionsJSON, liveLogArgument, packageSourceJSON]
+                    withArguments: [
+                        action.rawValue,
+                        customVersionsJSON,
+                        liveLogArgument,
+                        packageSourceJSON,
+                        payloadZipPathArgument
+                    ]
                 )
                 payload = String(result) ?? ""
             } catch {
@@ -272,6 +367,7 @@ enum PythonFlowRunner {
                 updatesAvailable: nil,
                 updatesSummary: nil,
                 availableVersions: nil,
+                runtimePackagesMissing: nil,
                 restartRequired: false
             )
         }
@@ -310,6 +406,7 @@ enum PythonFlowRunner {
             updatesAvailable: nil,
             updatesSummary: nil,
             availableVersions: nil,
+            runtimePackagesMissing: nil,
             restartRequired: false
         )
     }
@@ -329,6 +426,44 @@ enum PythonFlowRunner {
         }
         return GalleryResolution(
             items: items,
+            outputText: result["output"] as? String ?? "",
+            success: result["success"] as? Bool ?? false,
+            errorMessage: result["error_message"] as? String
+        )
+    }
+
+    private static func decodeFormatResolution(_ payload: String) -> YTDLPFormatResolution {
+        guard let data = payload.data(using: .utf8),
+              let result = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return YTDLPFormatResolution(
+                title: "",
+                formats: [],
+                outputText: payload,
+                success: false,
+                errorMessage: "Failed to read the yt-dlp format list."
+            )
+        }
+        let formats = ((result["formats"] as? [[String: Any]]) ?? []).compactMap { item -> YTDLPFormat? in
+            guard let id = item["id"] as? String, !id.isEmpty else { return nil }
+            let sizeNumber = item["filesize"] as? NSNumber
+            return YTDLPFormat(
+                id: id,
+                fileExtension: item["extension"] as? String ?? "",
+                resolution: item["resolution"] as? String ?? "",
+                width: (item["width"] as? NSNumber)?.intValue,
+                height: (item["height"] as? NSNumber)?.intValue,
+                framesPerSecond: (item["fps"] as? NSNumber)?.doubleValue,
+                videoBitrate: (item["video_bitrate"] as? NSNumber)?.doubleValue,
+                audioBitrate: (item["audio_bitrate"] as? NSNumber)?.doubleValue,
+                videoCodec: item["video_codec"] as? String ?? "",
+                audioCodec: item["audio_codec"] as? String ?? "",
+                fileSize: sizeNumber?.int64Value,
+                note: item["note"] as? String ?? ""
+            )
+        }
+        return YTDLPFormatResolution(
+            title: result["title"] as? String ?? "",
+            formats: formats,
             outputText: result["output"] as? String ?? "",
             success: result["success"] as? Bool ?? false,
             errorMessage: result["error_message"] as? String
@@ -357,6 +492,7 @@ enum PythonFlowRunner {
                 updatesAvailable: nil,
                 updatesSummary: nil,
                 availableVersions: nil,
+                runtimePackagesMissing: nil,
                 restartRequired: false
             )
         }
@@ -370,6 +506,7 @@ enum PythonFlowRunner {
         let restartRequired = result["restart_required"] as? Bool ?? false
         let output = result["output"] as? String ?? ""
         let versions = normalizedVersions(from: result["versions"])
+        let runtimePackagesMissing = hasMissingRuntimePackages(in: versions)
         let availableVersions = normalizedAvailableVersions(from: result["available_versions"])
 
         let summary = """
@@ -384,6 +521,7 @@ enum PythonFlowRunner {
         var versionLines = [
             "yt-dlp: \(versions["yt-dlp"] ?? "not installed")",
             "yt-dlp-apple-webkit-jsi: \(versions["yt-dlp-apple-webkit-jsi"] ?? "not installed")",
+            "curl-cffi: \(versions["curl-cffi"] ?? "not installed")",
             "gallery-dl: \(versions["gallery-dl"] ?? "not installed")"
         ]
         if let pipVersion = versions["pip"],
@@ -407,6 +545,7 @@ enum PythonFlowRunner {
             updatesAvailable: updatesAvailable,
             updatesSummary: updatesSummary,
             availableVersions: availableVersions,
+            runtimePackagesMissing: runtimePackagesMissing,
             restartRequired: restartRequired
         )
     }
@@ -420,7 +559,7 @@ enum PythonFlowRunner {
     private static func normalizedVersions(from value: Any?) -> [String: String] {
         guard let raw = value as? [String: Any] else { return [:] }
         var result: [String: String] = [:]
-        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "gallery-dl", "pip"] {
+        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl", "pip"] {
             guard let item = raw[key] else { continue }
             let versionText = String(describing: item).trimmingCharacters(in: .whitespacesAndNewlines)
             if !versionText.isEmpty {
@@ -430,10 +569,20 @@ enum PythonFlowRunner {
         return result
     }
 
+    private static func hasMissingRuntimePackages(in versions: [String: String]) -> Bool {
+        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl"] {
+            let versionText = versions[key]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            if versionText.isEmpty || versionText == "not installed" || versionText == "unknown" {
+                return true
+            }
+        }
+        return false
+    }
+
     private static func normalizedAvailableVersions(from value: Any?) -> [String: [String]] {
         guard let raw = value as? [String: Any] else { return [:] }
         var result: [String: [String]] = [:]
-        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "gallery-dl", "pip"] {
+        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl", "pip"] {
             guard let list = raw[key] as? [Any] else { continue }
             let values = list.map { String(describing: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -517,6 +666,7 @@ struct PythonFlowOutcome: Sendable {
     let updatesAvailable: Bool?
     let updatesSummary: String?
     let availableVersions: [String: [String]]?
+    let runtimePackagesMissing: Bool?
     let restartRequired: Bool
 }
 

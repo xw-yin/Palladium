@@ -14,8 +14,10 @@ extension ContentView {
     }
 
     func runPackageFlow(
-        action: String,
+        action: PackageAction,
         customVersions: [String: String]? = nil,
+        payloadZipPath: String? = nil,
+        temporaryPayloadZipURL: URL? = nil,
         updateWhenAvailable: Bool = false,
         isAutomaticUpdate: Bool = false
     ) {
@@ -24,15 +26,8 @@ extension ContentView {
         isPackageRunning = true
         isAutomaticallyUpdatingPackages = isAutomaticUpdate
         syncIdleTimerDisabled()
-        switch action {
-        case "update", "reinstall":
-            packageStatusText = "updating"
-        case "index_versions":
-            packageStatusText = "indexing"
-            isLoadingPackageVersions = true
-        default:
-            packageStatusText = "checking"
-        }
+        packageStatusText = action.initialStatusText
+        isLoadingPackageVersions = action == .indexVersions
 
         let logPipe = Pipe()
         let readHandle = logPipe.fileHandleForReading
@@ -64,8 +59,12 @@ extension ContentView {
                 action: action,
                 customVersions: customVersions,
                 packageSourceJSON: buildPackageSourceJSON(),
+                payloadZipPath: payloadZipPath,
                 liveLogFD: liveLogFD
             )
+            if let temporaryPayloadZipURL {
+                try? FileManager.default.removeItem(at: temporaryPayloadZipURL)
+            }
 
             FFmpegBridgeControl.setLiveLogFD(nil)
             unsetenv("PALLADIUM_CANCEL_FILE")
@@ -95,9 +94,11 @@ extension ContentView {
                 self.versionsText = versionsText
                 persistPackageVersionsText(versionsText)
             }
+            if let runtimePackagesMissing = outcome.runtimePackagesMissing {
+                self.runtimePackagesMissing = runtimePackagesMissing
+            }
             let updatesAvailable = outcome.updatesAvailable ?? false
             if outcome.updatesAvailable != nil {
-                self.packageUpdatesAvailable = updatesAvailable
                 self.packageUpdatesAvailable = updatesAvailable
             }
             if let updatesSummary = outcome.updatesSummary {
@@ -113,12 +114,12 @@ extension ContentView {
             self.hasLoadedPackageStatus = true
             Self.logger.info("package flow finished with status: \(outcome.statusText, privacy: .public)")
 
-            if action == "check", updateWhenAvailable, updatesAvailable {
+            if action == .check, updateWhenAvailable, updatesAvailable {
                 guard !isRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else {
                     appendConsoleText("[palladium] automatic package update skipped because a download is starting\n")
                     return
                 }
-                runPackageFlow(action: "update", isAutomaticUpdate: true)
+                runPackageFlow(action: .update, isAutomaticUpdate: true)
             }
 
 
@@ -127,12 +128,12 @@ extension ContentView {
     }
 
     func refreshPackageVersions() {
-        runPackageFlow(action: "check")
+        runPackageFlow(action: .check)
     }
 
     func loadPackageStatusIfNeeded() {
         guard !hasLoadedPackageStatus else { return }
-        runPackageFlow(action: "check")
+        runPackageFlow(action: .check)
     }
 
     func updatePackages() {
@@ -141,7 +142,7 @@ extension ContentView {
             showAlert = true
             return
         }
-        runPackageFlow(action: "update")
+        runPackageFlow(action: .update)
     }
 
     func reinstallPackages() {
@@ -150,35 +151,45 @@ extension ContentView {
             showAlert = true
             return
         }
-        runPackageFlow(action: "reinstall")
+        runPackageFlow(action: .reinstall)
     }
 
-    func updatePackagesWithCustomVersions(
-        _ ytDlpVersion: String?,
-        _ webkitJSIVersion: String?,
-        _ galleryDLVersion: String?,
-        _ pipVersion: String?
-    ) {
+    func restorePipPackages() {
+        if packageSourceMode == .custom && customPackageSpecs().isEmpty {
+            alertMessage = String(localized: "packages.source.custom_specs.empty")
+            showAlert = true
+            return
+        }
+        runPackageFlow(action: .restorePipPackages)
+    }
+
+    func updatePackagesWithCustomVersions(_ customVersions: [String: String]) {
         guard packageSourceMode != .custom else { return }
-        var customVersions: [String: String] = [:]
-        if let ytDlpVersion {
-            customVersions["yt-dlp"] = ytDlpVersion
-        }
-        if let webkitJSIVersion {
-            customVersions["yt-dlp-apple-webkit-jsi"] = webkitJSIVersion
-        }
-        if let galleryDLVersion {
-            customVersions["gallery-dl"] = galleryDLVersion
-        }
-        if let pipVersion {
-            customVersions["pip"] = pipVersion
-        }
         guard !customVersions.isEmpty else { return }
-        runPackageFlow(action: "update", customVersions: customVersions)
+        runPackageFlow(action: .update, customVersions: customVersions)
+    }
+
+    func installPackagePayloadZip(from sourceURL: URL) {
+        guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else { return }
+
+        do {
+            let temporaryPayloadZipURL = try copyPayloadZipToTemporaryStorage(from: sourceURL)
+            runPackageFlow(
+                action: .installPayloadZip,
+                payloadZipPath: temporaryPayloadZipURL.path,
+                temporaryPayloadZipURL: temporaryPayloadZipURL
+            )
+        } catch {
+            alertMessage = String(
+                format: String(localized: "packages.payload.import_failed"),
+                error.localizedDescription
+            )
+            showAlert = true
+        }
     }
 
     func fetchPackageIndexVersions() {
-        runPackageFlow(action: "index_versions")
+        runPackageFlow(action: .indexVersions)
     }
 
     func persistPackageVersionsText(_ text: String) {
@@ -190,7 +201,8 @@ extension ContentView {
         let payload: [String: Any] = [
             "mode": packageSourceMode.rawValue,
             "custom_specs": specs,
-            "disable_webkit_jsi_patch": disableWebKitJSIPatch
+            "locked_versions": Self.normalizedLockedPackageVersions(lockedPackageVersions),
+            "youtube_patch_mode": youtubePatchMode.rawValue
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let text = String(data: data, encoding: .utf8) else {
@@ -204,5 +216,29 @@ extension ContentView {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    }
+
+    private func copyPayloadZipToTemporaryStorage(from sourceURL: URL) throws -> URL {
+        let didAccessSecurityScopedResource = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessSecurityScopedResource {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let importDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PalladiumPayloadImports", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: importDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let fileName = sourceURL.lastPathComponent.isEmpty ? "payload.bundle" : sourceURL.lastPathComponent
+        let destinationURL = importDirectory.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        return destinationURL
     }
 }

@@ -52,6 +52,8 @@ struct ContentView: View {
     static let rememberSelectedPresetDefaultsKey = "palladium.rememberSelectedPreset"
     static let autoDownloadOnPasteDefaultsKey = "palladium.autoDownloadOnPaste"
     static let shareSheetDownloadModeDefaultsKey = "palladium.shareSheetDownloadMode"
+    static let showShareSheetFormatButtonDefaultsKey = "palladium.showShareSheetFormatButton"
+    static let showShareSheetFillURLButtonDefaultsKey = "palladium.showShareSheetFillURLButton"
     static let downloadPlaylistDefaultsKey = "palladium.downloadPlaylist"
     static let downloadSubtitlesDefaultsKey = "palladium.downloadSubtitles"
     static let embedThumbnailDefaultsKey = "palladium.embedThumbnail"
@@ -69,6 +71,7 @@ struct ContentView: View {
     static let linkHistoryEnabledDefaultsKey = "palladium.linkHistoryEnabled"
     static let linkHistoryLimitDefaultsKey = "palladium.linkHistoryLimit"
     static let linkHistoryEntriesDefaultsKey = "palladium.linkHistoryEntries"
+    static let hideHistoryCountDefaultsKey = "palladium.hideHistoryCount"
     static let appAppearanceModeDefaultsKey = "palladium.appAppearanceMode"
     static let showTemporaryDownloadsDefaultsKey = "palladium.showTemporaryDownloads"
     static let packageVersionsTextDefaultsKey = "palladium.packageVersionsText"
@@ -77,7 +80,9 @@ struct ContentView: View {
     static let packageSourceModeDefaultsKey = "palladium.packageSourceMode"
     static let customPackageSpecsDefaultsKey = "palladium.customPackageSpecs"
     static let downloadEngineDefaultsKey = "palladium.downloadEngine"
+    static let lockedPackageVersionsDefaultsKey = "palladium.lockedPackageVersions"
     static let disableWebKitJSIPatchDefaultsKey = "palladium.disableWebKitJSIPatch"
+    static let youtubePatchModeDefaultsKey = "palladium.youtubePatchMode"
     static let defaultLinkHistoryLimit = 10
     static let maxLinkHistoryLimit = 50
 
@@ -97,6 +102,8 @@ struct ContentView: View {
     @State var rememberSelectedPreset: Bool
     @State var autoDownloadOnPaste: Bool
     @State var shareSheetDownloadMode: ShareSheetDownloadMode
+    @State var showShareSheetFormatButton: Bool
+    @State var showShareSheetFillURLButton: Bool
     @State var downloadPlaylist: Bool
     @State var downloadSubtitles: Bool
     @State var embedThumbnail: Bool
@@ -115,6 +122,7 @@ struct ContentView: View {
     @State var linkHistoryEnabled: Bool
     @State var linkHistoryLimit: Int
     @State var linkHistoryEntries: [LinkHistoryEntry]
+    @State var hideHistoryCount: Bool
     @State var urlAllowlistSources: [URLAllowlistSource]
     @State var isCheckingDownloadAllowlist = false
     @State var isRefreshingURLAllowlists = false
@@ -124,6 +132,7 @@ struct ContentView: View {
     @State var packageStatusText = "idle"
     @State var versionsText: String
     @State var packageUpdatesAvailable = false
+    @State var runtimePackagesMissing = false
     @State var packageUpdatesSummaryText = String(localized: "packages.summary.idle")
     @State var availablePackageVersions: [String: [String]] = [:]
     @State var isLoadingPackageVersions = false
@@ -134,7 +143,8 @@ struct ContentView: View {
     @State var autoUpdatePackagesOnLaunch: Bool
     @State var packageSourceMode: PackageSourceMode
     @State var customPackageSpecsText: String
-    @State var disableWebKitJSIPatch: Bool
+    @State var lockedPackageVersions: [String: String]
+    @State var youtubePatchMode: YouTubePatchMode
     @State var storageSummary: StorageManagementSummary = .empty
     @StateObject var consoleLogStore: ConsoleLogStore
     @State var completedDownloadResult: CompletedDownloadResult?
@@ -166,6 +176,7 @@ struct ContentView: View {
     @State var keyboardDismissTapInstalled = false
     @State var showShareSheetDownloadPicker = false
     @State var shareSheetURL = ""
+    @State var pendingSharedFormatURL = ""
     @State var pendingSharedDownloadURL = ""
     @State var pendingSharedDownloadPreset: DownloadPreset?
     @State var lastConsumedShortcutRequestID: UUID?
@@ -181,6 +192,11 @@ struct ContentView: View {
     @State var selectedGalleryItemIndices = Set<Int>()
     @State var showGalleryPicker = false
     @State var isResolvingGallery = false
+    @State var availableFormats: [YTDLPFormat] = []
+    @State var formatPickerTitle = ""
+    @State var showFormatPicker = false
+    @State var isResolvingFormats = false
+    @State var formatDownloadPresetOverride: DownloadPreset?
 
     init() {
         let rememberPreset = Self.loadRememberSelectedPreset()
@@ -199,6 +215,8 @@ struct ContentView: View {
         _rememberSelectedPreset = State(initialValue: rememberPreset)
         _autoDownloadOnPaste = State(initialValue: Self.loadAutoDownloadOnPaste())
         _shareSheetDownloadMode = State(initialValue: Self.clampShareSheetMode(shareSheetDownloadMode, visiblePresets: visiblePresets))
+        _showShareSheetFormatButton = State(initialValue: Self.loadShowShareSheetFormatButton())
+        _showShareSheetFillURLButton = State(initialValue: Self.loadShowShareSheetFillURLButton())
         let restoreDefaults = Self.loadRestoreDownloadDefaults()
         let defPlaylist = Self.loadDefaultDownloadPlaylist()
         let defSubtitles = Self.loadDefaultDownloadSubtitles()
@@ -223,6 +241,7 @@ struct ContentView: View {
         let linkHistoryLimit = Self.loadLinkHistoryLimit()
         _linkHistoryLimit = State(initialValue: linkHistoryLimit)
         _linkHistoryEntries = State(initialValue: Self.loadLinkHistoryEntries(limit: linkHistoryLimit))
+        _hideHistoryCount = State(initialValue: Self.loadHideHistoryCount())
         _urlAllowlistSources = State(initialValue: URLAllowlistManager.loadSources())
         _appAppearanceMode = State(initialValue: Self.loadAppAppearanceMode())
         _showTemporaryDownloads = State(initialValue: Self.loadShowTemporaryDownloads())
@@ -231,7 +250,8 @@ struct ContentView: View {
         _autoUpdatePackagesOnLaunch = State(initialValue: Self.loadAutoUpdatePackagesOnLaunch())
         _packageSourceMode = State(initialValue: Self.loadPackageSourceMode())
         _customPackageSpecsText = State(initialValue: Self.loadCustomPackageSpecsText())
-        _disableWebKitJSIPatch = State(initialValue: Self.loadDisableWebKitJSIPatch())
+        _lockedPackageVersions = State(initialValue: Self.loadLockedPackageVersions())
+        _youtubePatchMode = State(initialValue: Self.loadYouTubePatchMode())
         _consoleLogStore = StateObject(wrappedValue: ConsoleLogStore())
     }
 
@@ -257,10 +277,12 @@ struct ContentView: View {
                     playlistProgress: playlistProgress,
                     downloadErrorText: downloadErrorText,
                     onDownload: { runDownloadFlow() },
+                    onChooseFormat: resolveFormatSelection,
                     onCancel: cancelDownloadFlow,
                     onPastedURL: handlePastedURL,
                     linkHistoryEnabled: linkHistoryEnabled,
                     historyEntries: linkHistoryEntries,
+                    hideHistoryCount: hideHistoryCount,
                     onSelectHistoryEntry: handleHistoryEntrySelection,
                     onDeleteHistoryEntry: removeHistoryEntry,
                     onCopyHistoryLink: copyHistoryLink,
@@ -268,7 +290,19 @@ struct ContentView: View {
                     selectedGalleryItemIndices: $selectedGalleryItemIndices,
                     showGalleryPicker: $showGalleryPicker,
                     isResolvingGallery: isResolvingGallery,
-                    onDownloadGallerySelection: { runDownloadFlow(gallerySelectionOverride: selectedGalleryItemIndices) }
+                    onDownloadGallerySelection: { runDownloadFlow(gallerySelectionOverride: selectedGalleryItemIndices) },
+                    availableFormats: availableFormats,
+                    formatPickerTitle: formatPickerTitle,
+                    showFormatPicker: $showFormatPicker,
+                    isResolvingFormats: isResolvingFormats,
+                    onDownloadFormat: { format in
+                        let presetOverride = formatDownloadPresetOverride
+                        formatDownloadPresetOverride = nil
+                        runDownloadFlow(
+                            presetOverride: presetOverride,
+                            formatOverride: format.downloadSelector
+                        )
+                    }
                 )
                 .tabItem {
                     Label(String(localized: "tab.download"), systemImage: "arrow.down.circle")
@@ -300,8 +334,11 @@ struct ContentView: View {
                     detailedProgressEnabled: $detailedProgressEnabled,
                     downloadPresetSettings: $downloadPresetSettings,
                     shareSheetDownloadMode: $shareSheetDownloadMode,
+                    showShareSheetFormatButton: $showShareSheetFormatButton,
+                    showShareSheetFillURLButton: $showShareSheetFillURLButton,
                     linkHistoryEnabled: $linkHistoryEnabled,
                     linkHistoryLimit: $linkHistoryLimit,
+                    hideHistoryCount: $hideHistoryCount,
                     appAppearanceMode: $appAppearanceMode,
                     showTemporaryDownloads: $showTemporaryDownloads,
                     selectedCookieFileName: $selectedCookieFileName,
@@ -315,11 +352,13 @@ struct ContentView: View {
                     storageSummary: storageSummary,
                     packageSourceMode: $packageSourceMode,
                     customPackageSpecsText: $customPackageSpecsText,
-                    disableWebKitJSIPatch: $disableWebKitJSIPatch,
+                    lockedPackageVersions: $lockedPackageVersions,
+                    youtubePatchMode: $youtubePatchMode,
                     packageStatusText: packageStatusText,
                     versionsText: versionsText,
                     updatesSummaryText: packageUpdatesSummaryText,
                     updatesAvailable: packageUpdatesAvailable,
+                    runtimePackagesMissing: runtimePackagesMissing,
                     availablePackageVersions: availablePackageVersions,
                     isLoadingPackageVersions: isLoadingPackageVersions,
                     isRunning: isRunning,
@@ -328,6 +367,8 @@ struct ContentView: View {
                     onRefreshVersions: refreshPackageVersions,
                     onCancelPackages: cancelPackageFlow,
                     onUpdatePackages: updatePackages,
+                    onInstallPackagePayloadZip: installPackagePayloadZip,
+                    onRestorePipPackages: restorePipPackages,
                     onReinstallPackages: reinstallPackages,
                     onCustomUpdatePackages: updatePackagesWithCustomVersions,
                     onFetchPackageVersions: fetchPackageIndexVersions,
@@ -342,6 +383,7 @@ struct ContentView: View {
                     onOpenStorageManager: refreshStorageSummary,
                     onRefreshCookieFiles: refreshImportedCookieFiles,
                     onImportCookieFile: importCookieFile,
+                    onPasteCookieFile: pasteCookieFile,
                     onDeleteCookieFile: deleteImportedCookieFile,
                     onRefreshURLAllowlists: refreshURLAllowlists,
                     onAddURLAllowlist: addURLAllowlist,
@@ -421,6 +463,12 @@ struct ContentView: View {
         .onChange(of: shareSheetDownloadMode, initial: false) {
             persistPreferences()
         }
+        .onChange(of: showShareSheetFormatButton, initial: false) {
+            persistPreferences()
+        }
+        .onChange(of: showShareSheetFillURLButton, initial: false) {
+            persistPreferences()
+        }
         .onChange(of: downloadPlaylist, initial: false) {
             persistPreferences()
         }
@@ -477,6 +525,9 @@ struct ContentView: View {
             trimLinkHistoryEntriesIfNeeded()
             persistPreferences()
         }
+        .onChange(of: hideHistoryCount, initial: false) {
+            persistPreferences()
+        }
         .onChange(of: appAppearanceMode, initial: false) {
             persistPreferences()
         }
@@ -495,13 +546,18 @@ struct ContentView: View {
         .onChange(of: customPackageSpecsText, initial: false) {
             persistPreferences()
         }
-        .onChange(of: disableWebKitJSIPatch, initial: false) {
+        .onChange(of: lockedPackageVersions, initial: false) {
+            persistPreferences()
+        }
+        .onChange(of: youtubePatchMode, initial: false) {
             persistPreferences()
         }
         .sheet(item: $sharePayload) { payload in
             ShareSheet(activityItems: payload.activityItems)
         }
-        .sheet(isPresented: $showShareSheetDownloadPicker) {
+        .sheet(isPresented: $showShareSheetDownloadPicker, onDismiss: {
+            resolvePendingSharedFormatSelection()
+        }) {
             shareSheetModePickerSheet
         }
         .sheet(isPresented: $showDownloadActionSheet) {
@@ -542,7 +598,7 @@ struct ContentView: View {
             refreshImportedCookieFiles()
             consumePendingShortcutDownloadRequestIfNeeded()
             if checkPackageUpdatesOnLaunch {
-                runPackageFlow(action: "check", updateWhenAvailable: autoUpdatePackagesOnLaunch)
+                runPackageFlow(action: .check, updateWhenAvailable: autoUpdatePackagesOnLaunch)
             }
         }
         .onDisappear {
@@ -585,6 +641,22 @@ private extension ContentView {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                if let packageNames = automaticPackageUpdatePackageNamesText {
+                    Text(
+                        String(
+                            format: String(localized: "packages.auto_update.packages"),
+                            packageNames
+                        )
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity)
+                }
             }
             .padding(24)
             .frame(maxWidth: 280)
@@ -595,6 +667,49 @@ private extension ContentView {
         }
         .contentShape(Rectangle())
         .accessibilityIdentifier("automaticPackageUpdateOverlay")
+    }
+
+    var automaticPackageUpdatePackageNamesText: String? {
+        let updatePackageNames = packageUpdatesSummaryText
+            .components(separatedBy: .newlines)
+            .compactMap { updateLinePackageName($0) }
+
+        let packageNames: [String]
+        if packageSourceMode == .custom {
+            packageNames = customPackageSpecs().compactMap { customSpecPackageName($0) }
+        } else {
+            packageNames = updatePackageNames
+        }
+
+        var seenPackageNames = Set<String>()
+        let uniqueNames = packageNames.filter { seenPackageNames.insert($0).inserted }
+        guard !uniqueNames.isEmpty else { return nil }
+        return uniqueNames.joined(separator: ", ")
+    }
+
+    func updateLinePackageName(_ line: String) -> String? {
+        let prefix = line.split(separator: ":", maxSplits: 1).first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let prefix, PackageSourceDefaults.lockablePackageNames.contains(prefix) else {
+            return nil
+        }
+        return prefix
+    }
+
+    func customSpecPackageName(_ spec: String) -> String? {
+        let trimmed = spec.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var nameEnd = trimmed.endIndex
+        for delimiter in ["==", ">=", "<=", "~=", "!=", ">", "<", " @ ", "[", ";"] {
+            if let range = trimmed.range(of: delimiter), range.lowerBound < nameEnd {
+                nameEnd = range.lowerBound
+            }
+        }
+
+        let name = trimmed[..<nameEnd].trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : String(name)
     }
 }
 

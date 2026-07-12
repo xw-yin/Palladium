@@ -8,9 +8,8 @@ import Darwin
 
 extension ContentView {
     func buildPresetArgumentsJSON() -> String {
-        let payload: [String: String] = [
-            "custom": customArgsText
-        ]
+        var payload = DownloadQualityPreferences.load().presetArguments()
+        payload["custom"] = customArgsText
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else {
             return "{}"
@@ -50,6 +49,8 @@ extension ContentView {
         defaults.set(autoDownloadOnPaste, forKey: Self.autoDownloadOnPasteDefaultsKey)
         defaults.set(detailedProgressEnabled, forKey: Self.detailedProgressEnabledDefaultsKey)
         defaults.set(shareSheetDownloadMode.rawValue, forKey: Self.shareSheetDownloadModeDefaultsKey)
+        defaults.set(showShareSheetFormatButton, forKey: Self.showShareSheetFormatButtonDefaultsKey)
+        defaults.set(showShareSheetFillURLButton, forKey: Self.showShareSheetFillURLButtonDefaultsKey)
         defaults.set(downloadPlaylist, forKey: Self.downloadPlaylistDefaultsKey)
         defaults.set(downloadSubtitles, forKey: Self.downloadSubtitlesDefaultsKey)
         defaults.set(embedThumbnail, forKey: Self.embedThumbnailDefaultsKey)
@@ -65,6 +66,7 @@ extension ContentView {
         defaults.set(selectedCookieFileName, forKey: Self.selectedCookieFileNameDefaultsKey)
         defaults.set(linkHistoryEnabled, forKey: Self.linkHistoryEnabledDefaultsKey)
         defaults.set(linkHistoryLimit, forKey: Self.linkHistoryLimitDefaultsKey)
+        defaults.set(hideHistoryCount, forKey: Self.hideHistoryCountDefaultsKey)
         defaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeDefaultsKey)
         defaults.set(showTemporaryDownloads, forKey: Self.showTemporaryDownloadsDefaultsKey)
         defaults.set(checkPackageUpdatesOnLaunch, forKey: Self.checkPackageUpdatesOnLaunchDefaultsKey)
@@ -74,6 +76,13 @@ extension ContentView {
         // Download engine
         defaults.set(downloadEngine.rawValue, forKey: Self.downloadEngineDefaultsKey)
         defaults.set(disableWebKitJSIPatch, forKey: Self.disableWebKitJSIPatchDefaultsKey)
+        let normalizedLocks = Self.normalizedLockedPackageVersions(lockedPackageVersions)
+        if normalizedLocks.isEmpty {
+            defaults.removeObject(forKey: Self.lockedPackageVersionsDefaultsKey)
+        } else if let data = try? JSONEncoder().encode(normalizedLocks) {
+            defaults.set(data, forKey: Self.lockedPackageVersionsDefaultsKey)
+        }
+        defaults.set(youtubePatchMode.rawValue, forKey: Self.youtubePatchModeDefaultsKey)
     }
 
     static func loadSelectedPreset(rememberSelection: Bool) -> DownloadPreset {
@@ -203,9 +212,23 @@ extension ContentView {
         return mode
     }
 
+    static func loadShowShareSheetFormatButton() -> Bool {
+        if UserDefaults.standard.object(forKey: showShareSheetFormatButtonDefaultsKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: showShareSheetFormatButtonDefaultsKey)
+    }
+
+    static func loadShowShareSheetFillURLButton() -> Bool {
+        if UserDefaults.standard.object(forKey: showShareSheetFillURLButtonDefaultsKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: showShareSheetFillURLButtonDefaultsKey)
+    }
+
     static func loadDetailedProgressEnabled() -> Bool {
         if UserDefaults.standard.object(forKey: detailedProgressEnabledDefaultsKey) == nil {
-            return false
+            return true
         }
         return UserDefaults.standard.bool(forKey: detailedProgressEnabledDefaultsKey)
     }
@@ -321,6 +344,10 @@ extension ContentView {
         return max(0, min(storedLimit, maxLinkHistoryLimit))
     }
 
+    static func loadHideHistoryCount() -> Bool {
+        UserDefaults.standard.bool(forKey: hideHistoryCountDefaultsKey)
+    }
+
     static func loadLinkHistoryEntries(limit: Int = maxLinkHistoryLimit) -> [LinkHistoryEntry] {
         guard let data = UserDefaults.standard.data(forKey: linkHistoryEntriesDefaultsKey),
               let decoded = try? JSONDecoder().decode([LinkHistoryEntry].self, from: data) else {
@@ -346,7 +373,12 @@ extension ContentView {
     }
 
     static func loadCachedPackageVersionsText() -> String {
-        let fallback = "yt-dlp: unknown\nyt-dlp-apple-webkit-jsi: unknown\ngallery-dl: unknown"
+        let fallback = [
+            "yt-dlp: unknown",
+            "yt-dlp-apple-webkit-jsi: unknown",
+            "curl-cffi: unknown",
+            "gallery-dl: unknown"
+        ].joined(separator: "\n")
         guard let value = UserDefaults.standard.string(forKey: packageVersionsTextDefaultsKey),
               !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return fallback
@@ -384,7 +416,40 @@ extension ContentView {
         return value
     }
 
-    static func loadDisableWebKitJSIPatch() -> Bool {
-        UserDefaults.standard.bool(forKey: disableWebKitJSIPatchDefaultsKey)
+    static func loadLockedPackageVersions() -> [String: String] {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: lockedPackageVersionsDefaultsKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            return normalizedLockedPackageVersions(decoded)
+        }
+
+        if let dictionary = defaults.dictionary(forKey: lockedPackageVersionsDefaultsKey) as? [String: String] {
+            return normalizedLockedPackageVersions(dictionary)
+        }
+
+        return [:]
+    }
+
+    static func normalizedLockedPackageVersions(_ versions: [String: String]) -> [String: String] {
+        var normalized: [String: String] = [:]
+        for packageName in PackageSourceDefaults.lockablePackageNames {
+            let version = versions[packageName]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !version.isEmpty {
+                normalized[packageName] = version
+            }
+        }
+        return normalized
+    }
+
+    static func loadYouTubePatchMode() -> YouTubePatchMode {
+        let defaults = UserDefaults.standard
+        if let rawValue = defaults.string(forKey: youtubePatchModeDefaultsKey),
+           let mode = YouTubePatchMode(rawValue: rawValue) {
+            return mode
+        }
+        if defaults.bool(forKey: disableWebKitJSIPatchDefaultsKey) {
+            return .off
+        }
+        return .webkit
     }
 }

@@ -1,5 +1,30 @@
 import Foundation
 
+enum PackageAction: String {
+    case check
+    case versions
+    case update
+    case reinstall
+    case indexVersions = "index_versions"
+    case installPayloadZip = "install_payload_zip"
+    case restorePipPackages = "restore_pip_packages"
+
+    var initialStatusText: String {
+        switch self {
+        case .installPayloadZip:
+            return "installing"
+        case .restorePipPackages:
+            return "restoring"
+        case .update, .reinstall:
+            return "updating"
+        case .indexVersions:
+            return "indexing"
+        case .check, .versions:
+            return "checking"
+        }
+    }
+}
+
 enum PackageSourceMode: String, CaseIterable, Identifiable {
     case stable
     case nightly
@@ -20,9 +45,18 @@ enum PackageSourceMode: String, CaseIterable, Identifiable {
 }
 
 enum PackageSourceDefaults {
+    static let lockablePackageNames = [
+        "yt-dlp",
+        "yt-dlp-apple-webkit-jsi",
+        "curl-cffi",
+        "gallery-dl",
+        "pip"
+    ]
+
     static let customSpecs = """
     yt-dlp
     yt-dlp-apple-webkit-jsi
+    curl-cffi
     gallery-dl
     pip
     """

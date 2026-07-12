@@ -26,19 +26,66 @@ extension ContentView {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            VStack(spacing: 14) {
-                ForEach(visibleDownloadPresets) { preset in
-                    let meta = shareSheetModeMetadata(for: preset)
-                    shareSheetModeButton(
-                        title: meta.title,
-                        subtitle: meta.subtitle,
-                        icon: meta.icon,
-                        color: meta.color,
-                        preset: preset
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 14) {
+                        ForEach(visibleDownloadPresets) { preset in
+                            let meta = shareSheetModeMetadata(for: preset)
+                            shareSheetModeButton(
+                                title: meta.title,
+                                subtitle: meta.subtitle,
+                                icon: meta.icon,
+                                color: meta.color,
+                                preset: preset
+                            )
+                        }
+
+                        if showShareSheetFormatButton {
+                            Button(action: handleShareSheetFormatSelection) {
+                                HStack {
+                                    Image(systemName: "list.bullet.rectangle")
+                                        .font(.title3)
+                                    Text("download.formats.title")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("download.formats.share_sheet_help")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.teal.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+
+                        if showShareSheetFillURLButton {
+                            Button(action: handleShareSheetFillURLSelection) {
+                                HStack {
+                                    Image(systemName: "link.badge.plus")
+                                        .font(.title3)
+                                    Text("download.share.fill_url")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("download.share.fill_url_help")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.indigo.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: geometry.size.height,
+                        alignment: .center
                     )
                 }
             }
-            .padding(.horizontal)
 
             Button(action: {
                 showShareSheetDownloadPicker = false
@@ -124,6 +171,41 @@ extension ContentView {
         startDownloadFromSharedURL(sharedLink, preset: preset)
     }
 
+    func handleShareSheetFormatSelection() {
+        let sharedLink = shareSheetURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sharedLink.isEmpty else { return }
+
+        pendingSharedFormatURL = sharedLink
+        shareSheetURL = ""
+        showShareSheetDownloadPicker = false
+    }
+
+    func handleShareSheetFillURLSelection() {
+        let sharedLink = shareSheetURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sharedLink.isEmpty else { return }
+
+        pendingSharedDownloadURL = ""
+        pendingSharedDownloadPreset = nil
+        pendingSharedFormatURL = ""
+        formatDownloadPresetOverride = nil
+        shareSheetURL = ""
+        selectedTab = .download
+        urlText = sharedLink
+        showShareSheetDownloadPicker = false
+        appendConsoleText("[palladium] shared link filled without starting a download\n")
+    }
+
+    func resolvePendingSharedFormatSelection() {
+        let sharedLink = pendingSharedFormatURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sharedLink.isEmpty else { return }
+
+        pendingSharedFormatURL = ""
+        selectedTab = .download
+        urlText = sharedLink
+        formatDownloadPresetOverride = .autoVideo
+        resolveFormatSelection(url: sharedLink, preset: .autoVideo)
+    }
+
     func startDownloadFromSharedURL(_ sharedLink: String, preset: DownloadPreset) {
         selectedTab = .download
         urlText = sharedLink
@@ -182,7 +264,8 @@ extension ContentView {
         presetOverride: DownloadPreset? = nil,
         afterDownloadOverride: AfterDownloadBehavior? = nil,
         allowlistChecked: Bool = false,
-        gallerySelectionOverride: Set<Int>? = nil
+        gallerySelectionOverride: Set<Int>? = nil,
+        formatOverride: String? = nil
     ) {
         guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist else { return }
         let targetURL = (urlOverride ?? urlText).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -217,7 +300,8 @@ extension ContentView {
                     presetOverride: presetOverride,
                     afterDownloadOverride: afterDownloadOverride,
                     allowlistChecked: true,
-                    gallerySelectionOverride: gallerySelectionOverride
+                    gallerySelectionOverride: gallerySelectionOverride,
+                    formatOverride: formatOverride
                 )
             }
             return
@@ -274,7 +358,15 @@ extension ContentView {
         let presetAtStart = selectedDownloadPreset.pythonValue
         let gallerySelectionRangeAtStart = gallerySelectionOverride.map(gallerySelectionRange)
         let gallerySelectionCountAtStart = gallerySelectionOverride?.count ?? 0
-        let extraArgsAtStart = extraArgsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseExtraArgs = extraArgsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let extraArgsAtStart: String
+        if let formatOverride, !formatOverride.isEmpty {
+            extraArgsAtStart = baseExtraArgs.isEmpty
+                ? "--format \(formatOverride)"
+                : "\(baseExtraArgs) --format \(formatOverride)"
+        } else {
+            extraArgsAtStart = baseExtraArgs
+        }
         let presetArgsJSONAtStart = buildPresetArgumentsJSON()
         let afterDownloadBehaviorAtStart = afterDownloadOverride ?? afterDownloadBehavior
         let linkHistoryEnabledAtStart = linkHistoryEnabled
@@ -477,6 +569,46 @@ extension ContentView {
             }
         }
         currentDownloadTask = task
+    }
+
+    func resolveFormatSelection() {
+        formatDownloadPresetOverride = nil
+        resolveFormatSelection(url: urlText, preset: selectedPreset)
+    }
+
+    func resolveFormatSelection(url: String, preset: DownloadPreset) {
+        let targetURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetURL.isEmpty, !isRunning, !isResolvingFormats else { return }
+        guard preset != .images else {
+            runDownloadFlow(urlOverride: targetURL, presetOverride: preset)
+            return
+        }
+
+        isResolvingFormats = true
+        downloadErrorText = nil
+        progressText = String(localized: "download.formats.loading")
+        let cookiePath = useCookies ? resolvedSelectedCookieFilePath() : nil
+        Task {
+            let resolution = await PythonFlowRunner.resolveFormats(
+                url: targetURL,
+                cookieFilePath: cookiePath
+            )
+            await MainActor.run {
+                isResolvingFormats = false
+                progressText = String(localized: "download.prompt.idle")
+                if resolution.success, !resolution.formats.isEmpty {
+                    availableFormats = resolution.formats
+                    formatPickerTitle = resolution.title
+                    showFormatPicker = true
+                } else {
+                    downloadErrorText = resolution.errorMessage
+                        ?? String(localized: "download.formats.empty")
+                    if !resolution.outputText.isEmpty {
+                        appendConsoleText(resolution.outputText)
+                    }
+                }
+            }
+        }
     }
 
     func resolveGallerySelection(url: String) {
