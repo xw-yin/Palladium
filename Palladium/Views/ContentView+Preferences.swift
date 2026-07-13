@@ -75,7 +75,6 @@ extension ContentView {
         defaults.set(customPackageSpecsText, forKey: Self.customPackageSpecsDefaultsKey)
         // Download engine
         defaults.set(downloadEngine.rawValue, forKey: Self.downloadEngineDefaultsKey)
-        defaults.set(disableWebKitJSIPatch, forKey: Self.disableWebKitJSIPatchDefaultsKey)
         let normalizedLocks = Self.normalizedLockedPackageVersions(lockedPackageVersions)
         if normalizedLocks.isEmpty {
             defaults.removeObject(forKey: Self.lockedPackageVersionsDefaultsKey)
