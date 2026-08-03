@@ -11,7 +11,6 @@ struct SettingsTabView: View {
         case afterDownload
         case downloadBehavior
         case downloadArguments
-        case urlAllowlists
         case cookies
         case appearance
         case downloadsTab
@@ -83,18 +82,19 @@ struct SettingsTabView: View {
     @Binding var hideHistoryCount: Bool
     @Binding var appAppearanceMode: AppAppearanceMode
     @Binding var showTemporaryDownloads: Bool
+    @Binding var useCookies: Bool
     @Binding var selectedCookieFileName: String
     @Binding var defaultDownloadPlaylist: Bool
     @Binding var defaultDownloadSubtitles: Bool
     @Binding var defaultEmbedThumbnail: Bool
     @Binding var defaultUseCookies: Bool
     @Binding var restoreDownloadDefaults: Bool
-    let urlAllowlistSources: [URLAllowlistSource]
     let importedCookieFiles: [ImportedCookieFile]
 
     let storageSummary: StorageManagementSummary
     @Binding var packageSourceMode: PackageSourceMode
     @Binding var customPackageSpecsText: String
+    @Binding var additionalManagedPackageNames: [String]
     @Binding var lockedPackageVersions: [String: String]
     @Binding var youtubePatchMode: YouTubePatchMode
     let packageStatusText: String
@@ -106,12 +106,12 @@ struct SettingsTabView: View {
     let isLoadingPackageVersions: Bool
     let isRunning: Bool
     let isPackageRunning: Bool
-    let isRefreshingURLAllowlists: Bool
     let onRefreshVersions: () -> Void
     let onCancelPackages: () -> Void
     let onUpdatePackages: () -> Void
     let onInstallPackagePayloadZip: (_ sourceURL: URL) -> Void
     let onRestorePipPackages: () -> Void
+    let onRemoveManagedPackage: (_ packageName: String) -> Void
     let onReinstallPackages: () -> Void
     let onCustomUpdatePackages: (_ versions: [String: String]) -> Void
     let onFetchPackageVersions: () -> Void
@@ -126,14 +126,10 @@ struct SettingsTabView: View {
     let onOpenStorageManager: () -> Void
     let onRefreshCookieFiles: () -> Void
     let onImportCookieFile: (_ sourceURL: URL) throws -> Void
-    let onPasteCookieFile: (_ rawText: String) throws -> Void
+    let onImportCookiesFromWebsite: (_ cookies: [HTTPCookie], _ sourceURL: URL) throws -> Void
+    let onPasteCookieFile: (_ rawText: String, _ preferredName: String) throws -> Void
+    let onRenameCookieFile: (_ cookieFile: ImportedCookieFile, _ newName: String) throws -> Void
     let onDeleteCookieFile: (_ cookieFile: ImportedCookieFile) throws -> Void
-    let onRefreshURLAllowlists: (_ onComplete: ((_ message: String) -> Void)?) -> Void
-    let onAddURLAllowlist: (_ urlString: String, _ onComplete: ((_ message: String) -> Void)?) -> Void
-    let onImportURLAllowlist: (_ sourceURL: URL, _ onComplete: ((_ message: String) -> Void)?) -> Void
-    let onPasteURLAllowlist: (_ json: String, _ onComplete: ((_ message: String) -> Void)?) -> Void
-    let onRemoveURLAllowlist: (_ source: URLAllowlistSource) -> Void
-
     var body: some View {
         NavigationStack {
             Group {
@@ -170,7 +166,6 @@ struct SettingsTabView: View {
             Section(header: Text("settings.general.section")) {
                 settingsNavigationLink(for: .userInterface)
                 settingsNavigationLink(for: .downloadSettings)
-                settingsNavigationLink(for: .urlAllowlists)
                 settingsNavigationLink(for: .packages)
                 settingsNavigationLink(for: .advanced)
             }
@@ -264,17 +259,6 @@ struct SettingsTabView: View {
                 extraArgsText: $extraArgsText,
                 isRunning: isRunning
             )
-        case .urlAllowlists:
-            URLAllowlistsSettingsView(
-                sources: urlAllowlistSources,
-                isBusy: isRunning || isPackageRunning,
-                isRefreshing: isRefreshingURLAllowlists,
-                onRefresh: onRefreshURLAllowlists,
-                onAdd: onAddURLAllowlist,
-                onImport: onImportURLAllowlist,
-                onPaste: onPasteURLAllowlist,
-                onRemove: onRemoveURLAllowlist
-            )
         case .appearance:
             AppearanceSettingsView(
                 appAppearanceMode: $appAppearanceMode,
@@ -312,12 +296,16 @@ struct SettingsTabView: View {
             )
         case .cookies:
             CookiesSettingsView(
+                useCookies: $useCookies,
                 selectedCookieFileName: $selectedCookieFileName,
+                defaultUseCookies: $defaultUseCookies,
                 importedCookieFiles: importedCookieFiles,
                 isBusy: isRunning || isPackageRunning,
                 onRefresh: onRefreshCookieFiles,
                 onImport: onImportCookieFile,
+                onImportFromWebsite: onImportCookiesFromWebsite,
                 onPaste: onPasteCookieFile,
+                onRename: onRenameCookieFile,
                 onDelete: onDeleteCookieFile
             )
         case .packages:
@@ -327,6 +315,7 @@ struct SettingsTabView: View {
                 autoUpdatePackagesOnLaunch: $autoUpdatePackagesOnLaunch,
                 packageSourceMode: $packageSourceMode,
                 customPackageSpecsText: $customPackageSpecsText,
+                additionalManagedPackageNames: $additionalManagedPackageNames,
                 lockedPackageVersions: $lockedPackageVersions,
                 versionsText: versionsText,
                 updatesSummaryText: updatesSummaryText,
@@ -340,6 +329,7 @@ struct SettingsTabView: View {
                 onUpdatePackages: onUpdatePackages,
                 onInstallPayloadZip: onInstallPackagePayloadZip,
                 onRestorePipPackages: onRestorePipPackages,
+                onRemoveManagedPackage: onRemoveManagedPackage,
                 onCustomUpdatePackages: onCustomUpdatePackages,
                 onFetchPackageVersions: onFetchPackageVersions,
                 onAppear: onOpenPackageManager
@@ -773,7 +763,7 @@ struct SettingsTabView: View {
                 id: "youtubePatchMode",
                 menu: .advanced,
                 title: "settings.advanced.youtube_patch_mode",
-                subtitle: "settings.advanced.restart_required",
+                subtitle: "settings.advanced.youtube_patch_mode.help",
                 keywords: YouTubePatchMode.allCases.map(\.title) + [String(localized: "settings.advanced.title")]
             ) { title in
                 AnyView(
@@ -881,7 +871,7 @@ struct SettingsTabView: View {
     }
 
     private var searchableSettings: [SearchableSetting] {
-        [
+        let routes: [SettingsRoute] = [
             .userInterface,
             .appearance,
             .downloadsTab,
@@ -897,13 +887,14 @@ struct SettingsTabView: View {
             .downloadBehavior,
             .downloadArguments,
             .cookies,
-            .urlAllowlists,
             .packages,
             .packageManager,
             .advanced,
             .storage,
             .about
-        ].map { setting(for: $0) }
+        ]
+
+        return routes.map { setting(for: $0) }
     }
 
     private func setting(for route: SettingsRoute) -> SearchableSetting {
@@ -987,17 +978,6 @@ struct SettingsTabView: View {
                 subtitle: String(localized: "settings.download_args.subtitle"),
                 icon: "terminal",
                 color: .blue
-            )
-        case .urlAllowlists:
-            return SearchableSetting(
-                route: route,
-                title: String(localized: "allowlists.title"),
-                subtitle: String(
-                    format: String(localized: "allowlists.subtitle"),
-                    urlAllowlistSources.count
-                ),
-                icon: "checkmark.shield.fill",
-                color: .mint
             )
         case .cookies:
             return SearchableSetting(

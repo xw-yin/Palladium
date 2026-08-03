@@ -16,7 +16,6 @@ Palladium/
 ├── scripts/                 Build and validation helper scripts
 ├── Frameworks/              Local, untracked Python, FFmpeg, and curl-cffi dependencies
 ├── build_ipa.sh             Command-line IPA build script
-├── CHANGELOG.md             Release history
 ├── LICENSE                  GPLv3 license text
 └── README.md                Project overview and contributor entry point
 ```
@@ -26,7 +25,7 @@ Palladium/
 | Path | Purpose |
 | --- | --- |
 | `.github/FUNDING.yml` | GitHub Sponsors configuration. |
-| `.github/workflows/build_ipa.yml` | GitHub Actions workflow that runs Python tests, downloads local dependencies, and builds the IPA. |
+| `.github/workflows/build_ipa.yml` | GitHub Actions workflow that runs Python tests, downloads dependencies, and builds the IPA. |
 | `.gitignore` | Files and local dependencies excluded from Git. |
 | `Palladium.xcodeproj/project.pbxproj` | Targets, build phases, build settings, and file references for Xcode. |
 | `Version.xcconfig` | Single source for the app version, build number, and final-build flag. |
@@ -35,6 +34,7 @@ Palladium/
 | `build_ipa.sh` | Builds and exports an IPA outside Xcode. |
 | `scripts/install_python_runtime.sh` | Copies Python runtime files and privacy manifests into the app bundle during builds. |
 | `scripts/python_tests/` | Split Python unittest modules and shared helpers for package/runtime behavior. |
+| `scripts/swift_tests/` | Native XCTest sources synchronized with the `PalladiumTests` target. |
 | `scripts/update_build_metadata.sh` | Writes Git commit and final-build metadata into the built app Info.plist. |
 | `scripts/test_package_source_modes.py` | Compatibility runner for split Python package/runtime tests. |
 
@@ -45,13 +45,16 @@ Palladium/
 | `PalladiumApp.swift` | SwiftUI app entry point and root app configuration. |
 | `Info.plist` | Main app bundle metadata and iOS configuration. |
 | `PalladiumDebug.entitlements` | Debug signing capabilities. |
+| `Resources/ManagedPipPackages.txt` | Single manifest for managed pip packages and optional `[version]` locks. |
 | `AppIntents/ShortcutDownloadIntents.swift` | App Shortcuts intents for starting downloads. |
 | `Models/AppAppearanceMode.swift` | Appearance-mode setting model. |
+| `Models/DownloadServiceDomain.swift` | Canonical source-service domain resolver for saved-download folders. |
 | `Models/DownloadOptions.swift` | Download option model and persisted settings. |
+| `Models/DownloadQueue.swift` | Sequential download queue models, state transitions, and persistence. |
 | `Models/ImportedCookieFile.swift` | Imported cookie-file model. |
 | `Models/LinkHistory.swift` | Previously used link model and history storage data. |
 | `Models/PackageSourceMode.swift` | Package-source selection model. |
-| `Models/URLAllowlist.swift` | URL allowlist model. |
+| `Models/TemporaryDownloadRetentionPolicy.swift` | Decides whether completed temporary downloads are removed after saving. |
 | `Models/YouTubePatchMode.swift` | Patch target setting model. |
 
 ### Views
@@ -61,6 +64,7 @@ Palladium/
 | `Views/ContentView.swift` | Root UI, tab layout, and shared view state. |
 | `Views/ContentView+Cookies.swift` | Cookie import and management UI logic. |
 | `Views/ContentView+DownloadFlow.swift` | Download initiation and progress flow. |
+| `Views/ContentView+DownloadQueue.swift` | Persistent sequential queue coordination and queue state actions. |
 | `Views/ContentView+History.swift` | Download and link history behavior. |
 | `Views/ContentView+Notifications.swift` | Local notification handling. |
 | `Views/ContentView+Packages.swift` | Python package management behavior. |
@@ -68,8 +72,8 @@ Palladium/
 | `Views/ContentView+Preferences.swift` | Shared preference access and updates. |
 | `Views/ContentView+Storage.swift` | Download storage and file-management behavior. |
 | `Views/ContentView+Support.swift` | Support, diagnostics, and helper UI behavior. |
-| `Views/ContentView+URLAllowlists.swift` | URL allowlist UI behavior. |
 | `Views/Tabs/DownloadTabView.swift` | Main download screen. |
+| `Views/Tabs/DownloadQueueSheetView.swift` | Multiline queue editor, controls, ordering, and item statuses. |
 | `Views/Tabs/PackagesTabView.swift` | Python package management screen. |
 | `Views/Tabs/SavedDownloadsTabView.swift` | Saved-downloads browser. |
 | `Views/Tabs/ConsoleTabView.swift` | In-app log console. |
@@ -78,6 +82,7 @@ Palladium/
 | `Views/Tabs/Settings/AdvancedSettingsView.swift` | Advanced runtime settings screen. |
 | `Views/Tabs/Settings/AppearanceSettingsView.swift` | Appearance settings screen. |
 | `Views/Tabs/Settings/CookiesSettingsView.swift` | Cookie settings screen. |
+| `Views/Tabs/Settings/CookieWebsiteImportView.swift` | Private website login flow for importing browser cookies. |
 | `Views/Tabs/Settings/DownloadArgumentsSettingsView.swift` | Custom yt-dlp argument settings screen. |
 | `Views/Tabs/Settings/DownloadBehaviorSettingsView.swift` | Download behavior settings screen. |
 | `Views/Tabs/Settings/DownloadModesSettingsView.swift` | Download-mode settings screen. |
@@ -90,7 +95,6 @@ Palladium/
 | `Views/Tabs/Settings/PackagesSettingsView.swift` | Package source and package settings screen. |
 | `Views/Tabs/Settings/ShareSheetSettingsView.swift` | Incoming share behavior and picker-button settings screen. |
 | `Views/Tabs/Settings/StorageSettingsView.swift` | Storage settings screen. |
-| `Views/Tabs/Settings/URLAllowlistsSettingsView.swift` | URL allowlist settings screen. |
 | `Views/Tabs/Settings/UseInterfaceSettingsView.swift` | Interface-use settings screen. |
 | `Views/Tabs/Settings/about.swift` | About screen. |
 
@@ -98,6 +102,7 @@ Palladium/
 
 | Path | Purpose |
 | --- | --- |
+| `Services/Cookies/NetscapeCookieExporter.swift` | Converts browser cookies into Netscape cookie-file records. |
 | `Services/FFmpeg/SwiftFFmpegBridge.swift` | Swift interface to bundled FFmpeg functionality. |
 | `Services/Logging/ConsoleLogStore.swift` | Store backing the in-app console. |
 | `Services/Shortcuts/ShortcutDownloadRequestStore.swift` | Transfers download requests from App Shortcuts into the app. |
@@ -141,16 +146,23 @@ Palladium/
 | `ShareExtension.entitlements` | Share extension signing capabilities and app-group access. |
 | `Base.lproj/MainInterface.storyboard` | Share extension interface definition. |
 
+## Tests
+
+| Path | Purpose |
+| --- | --- |
+| `scripts/swift_tests/DownloadServiceDomainTests.swift` | Saved-download service-domain canonicalization tests. |
+| `scripts/swift_tests/DownloadQueueTests.swift` | Download queue parsing, state transition, ordering, and persistence tests. |
+| `scripts/swift_tests/TemporaryDownloadRetentionPolicyTests.swift` | Temporary-download cleanup policy tests. |
+
 ## Other Files and Directories
 
 | Path | Purpose |
 | --- | --- |
-| `docs/ALLOWLISTS.md` | URL allowlist format and configuration instructions. |
+| `docs/ALLOWLISTS.md` | Legacy URL allowlist instructions for versions earlier than 1.3.2. |
 | `docs/BUILD.md` | Local dependency setup and Xcode build instructions. |
 | `docs/STRUCTURE.md` | This project map. |
 | `privacy-manifests/python/_hashlib.xcprivacy` | Required-reason API declaration for Python's hashlib module. |
 | `privacy-manifests/python/_ssl.xcprivacy` | Required-reason API declaration for Python's SSL module. |
-| `CHANGELOG.md` | Versioned change history. |
 | `LICENSE` | GPLv3 terms. |
 | `Frameworks/Python.xcframework` | Locally installed Python runtime; required to build and intentionally untracked. |
 | `Frameworks/SwiftFFmpeg-iOS` | Locally installed SwiftFFmpeg package and FFmpeg framework; required to build and intentionally untracked. |

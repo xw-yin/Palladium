@@ -19,11 +19,20 @@ On-device iOS media downloader powered by `yt-dlp`, `gallery-dl`, `ffmpeg`, and 
   </a>
 </div>
 
+## App Screenshoots
+
+<p align="center">
+  <img src="https://getpalladium.app/assets/palladium_save_download-3klk9xNj.png" alt="Palladium save and download screen" width="30%">
+  <img src="https://getpalladium.app/assets/palladium_home-D3fXGuDM.png" alt="Palladium home screen" width="30%">
+  <img src="https://getpalladium.app/assets/palladium_package_manager-CDmMQXL5.png" alt="Palladium package manager screen" width="30%">
+</p>
+
 > [!TIP]
-> **This URL is not allowed by the configured download allowlists.**
+> **This URL is not allowed by the configured download allowlists.** 
 >
-> To allow downloads from any URL, visit [getpalladium.app/allowlist](https://getpalladium.app/allowlist) and click **Add to Palladium**.<br>
-> To craft allowlists manually, see [docs/ALLOWLISTS](docs/ALLOWLISTS.md) or [#12](https://github.com/tfourj/Palladium/issues/12) for more information.
+> To allow downloads from any URL, visit [getpalladium.app/allowlist](https://getpalladium.app/allowlist) and click **Add to Palladium** <br>
+> To craft allowlists manually, see [docs/ALLOWLISTS](docs/ALLOWLISTS.md) or [#12](https://github.com/tfourj/Palladium/issues/12) for more information.<br>
+>**(Allowlists not required after v1.3.2+).**
 
 ## What It Does
 

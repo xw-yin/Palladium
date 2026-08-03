@@ -17,7 +17,7 @@ struct ContentView: View {
         case console
     }
 
-    enum PhotosMediaType {
+    enum PhotosMediaType: Equatable {
         case video
         case image
     }
@@ -80,6 +80,7 @@ struct ContentView: View {
     static let packageSourceModeDefaultsKey = "palladium.packageSourceMode"
     static let customPackageSpecsDefaultsKey = "palladium.customPackageSpecs"
     static let downloadEngineDefaultsKey = "palladium.downloadEngine"
+    static let additionalManagedPackagesDefaultsKey = "palladium.additionalManagedPackages"
     static let lockedPackageVersionsDefaultsKey = "palladium.lockedPackageVersions"
     static let disableWebKitJSIPatchDefaultsKey = "palladium.disableWebKitJSIPatch"
     static let youtubePatchModeDefaultsKey = "palladium.youtubePatchMode"
@@ -123,9 +124,6 @@ struct ContentView: View {
     @State var linkHistoryLimit: Int
     @State var linkHistoryEntries: [LinkHistoryEntry]
     @State var hideHistoryCount: Bool
-    @State var urlAllowlistSources: [URLAllowlistSource]
-    @State var isCheckingDownloadAllowlist = false
-    @State var isRefreshingURLAllowlists = false
     @State var appAppearanceMode: AppAppearanceMode
     @State var showTemporaryDownloads: Bool
     @State var selectedTab: AppTab = .download
@@ -143,19 +141,23 @@ struct ContentView: View {
     @State var autoUpdatePackagesOnLaunch: Bool
     @State var packageSourceMode: PackageSourceMode
     @State var customPackageSpecsText: String
+    @State var additionalManagedPackageNames: [String]
     @State var lockedPackageVersions: [String: String]
     @State var youtubePatchMode: YouTubePatchMode
     @State var storageSummary: StorageManagementSummary = .empty
     @StateObject var consoleLogStore: ConsoleLogStore
     @State var completedDownloadResult: CompletedDownloadResult?
+    @State var pendingPostDownloadResults: [CompletedDownloadResult] = []
     @State var completedDownloadAllowsSaveToApplicationFolder = true
     @State var completedPhotosCompatibility: PhotosCompatibilityState = .checking
     @State var showDownloadActionSheet = false
+    @State var advancePostDownloadAfterActionSheetDismissal = false
+    @State var advancePostDownloadAfterSharing = false
+    @State var sharedPostDownloadFolderID: UUID?
+    @State var sharedPostDownloadFolderURL: URL?
     @State var alertMessage: String?
     @State var showAlert = false
     @State var reopenDownloadActionAfterAlert = false
-    @State var pendingDuplicateAllowlistURL: String?
-    @State var showDuplicateAllowlistPrompt = false
     @State var toastMessage: String?
     @State var showToastMessage = false
     @State var sharePayload: SharePayload?
@@ -169,7 +171,8 @@ struct ContentView: View {
     @State var isInstallingPackagesDuringDownload = false
     @State var galleryDownloadExpectedCount = 0
     @State var galleryDownloadCompletedCount = 0
-    @State var galleryDownloadOutputDirectory: String?
+    @State var galleryDownloadFailedCount = 0
+    @State var galleryDownloadFailedItems: [String] = []
     @State var galleryDownloadedOutputPaths = Set<String>()
     @State var pendingConsoleChunks = ""
     @State var isConsoleFlushScheduled = false
@@ -196,7 +199,12 @@ struct ContentView: View {
     @State var formatPickerTitle = ""
     @State var showFormatPicker = false
     @State var isResolvingFormats = false
-    @State var formatDownloadPresetOverride: DownloadPreset?
+    @State var downloadQueue: DownloadQueue
+    @State var awaitingQueueItemID: UUID?
+    @State var awaitingQueueItemWasPartial = false
+    @State var queueConsoleInitialized = false
+    @State var shareSheetCompletion: (() -> Void)?
+    @State var showDownloadQueueSheet = false
 
     init() {
         let rememberPreset = Self.loadRememberSelectedPreset()
@@ -242,7 +250,6 @@ struct ContentView: View {
         _linkHistoryLimit = State(initialValue: linkHistoryLimit)
         _linkHistoryEntries = State(initialValue: Self.loadLinkHistoryEntries(limit: linkHistoryLimit))
         _hideHistoryCount = State(initialValue: Self.loadHideHistoryCount())
-        _urlAllowlistSources = State(initialValue: URLAllowlistManager.loadSources())
         _appAppearanceMode = State(initialValue: Self.loadAppAppearanceMode())
         _showTemporaryDownloads = State(initialValue: Self.loadShowTemporaryDownloads())
         _versionsText = State(initialValue: Self.loadCachedPackageVersionsText())
@@ -250,9 +257,18 @@ struct ContentView: View {
         _autoUpdatePackagesOnLaunch = State(initialValue: Self.loadAutoUpdatePackagesOnLaunch())
         _packageSourceMode = State(initialValue: Self.loadPackageSourceMode())
         _customPackageSpecsText = State(initialValue: Self.loadCustomPackageSpecsText())
-        _lockedPackageVersions = State(initialValue: Self.loadLockedPackageVersions())
+        let additionalManagedPackageNames = Self.loadAdditionalManagedPackageNames()
+        _additionalManagedPackageNames = State(initialValue: additionalManagedPackageNames)
+        _lockedPackageVersions = State(
+            initialValue: Self.loadLockedPackageVersions(
+                additionalManagedPackageNames: additionalManagedPackageNames
+            )
+        )
         _youtubePatchMode = State(initialValue: Self.loadYouTubePatchMode())
         _consoleLogStore = StateObject(wrappedValue: ConsoleLogStore())
+        _downloadQueue = State(initialValue: DownloadQueuePersistence.load())
+        _awaitingQueueItemID = State(initialValue: nil)
+        _shareSheetCompletion = State(initialValue: nil)
     }
 
     var body: some View {
@@ -286,6 +302,8 @@ struct ContentView: View {
                     onSelectHistoryEntry: handleHistoryEntrySelection,
                     onDeleteHistoryEntry: removeHistoryEntry,
                     onCopyHistoryLink: copyHistoryLink,
+                    downloadQueue: downloadQueue,
+                    showDownloadQueueSheet: $showDownloadQueueSheet,
                     galleryItems: galleryItems,
                     selectedGalleryItemIndices: $selectedGalleryItemIndices,
                     showGalleryPicker: $showGalleryPicker,
@@ -296,12 +314,7 @@ struct ContentView: View {
                     showFormatPicker: $showFormatPicker,
                     isResolvingFormats: isResolvingFormats,
                     onDownloadFormat: { format in
-                        let presetOverride = formatDownloadPresetOverride
-                        formatDownloadPresetOverride = nil
-                        runDownloadFlow(
-                            presetOverride: presetOverride,
-                            formatOverride: format.downloadSelector
-                        )
+                        runDownloadFlow(formatOverride: format)
                     }
                 )
                 .tabItem {
@@ -341,17 +354,18 @@ struct ContentView: View {
                     hideHistoryCount: $hideHistoryCount,
                     appAppearanceMode: $appAppearanceMode,
                     showTemporaryDownloads: $showTemporaryDownloads,
+                    useCookies: $useCookies,
                     selectedCookieFileName: $selectedCookieFileName,
                     defaultDownloadPlaylist: $defaultDownloadPlaylist,
                     defaultDownloadSubtitles: $defaultDownloadSubtitles,
                     defaultEmbedThumbnail: $defaultEmbedThumbnail,
                     defaultUseCookies: $defaultUseCookies,
                     restoreDownloadDefaults: $restoreDownloadDefaults,
-                    urlAllowlistSources: urlAllowlistSources,
                     importedCookieFiles: importedCookieFiles,
                     storageSummary: storageSummary,
                     packageSourceMode: $packageSourceMode,
                     customPackageSpecsText: $customPackageSpecsText,
+                    additionalManagedPackageNames: $additionalManagedPackageNames,
                     lockedPackageVersions: $lockedPackageVersions,
                     youtubePatchMode: $youtubePatchMode,
                     packageStatusText: packageStatusText,
@@ -363,12 +377,12 @@ struct ContentView: View {
                     isLoadingPackageVersions: isLoadingPackageVersions,
                     isRunning: isRunning,
                     isPackageRunning: isPackageRunning,
-                    isRefreshingURLAllowlists: isRefreshingURLAllowlists,
                     onRefreshVersions: refreshPackageVersions,
                     onCancelPackages: cancelPackageFlow,
                     onUpdatePackages: updatePackages,
                     onInstallPackagePayloadZip: installPackagePayloadZip,
                     onRestorePipPackages: restorePipPackages,
+                    onRemoveManagedPackage: removeManagedPackage,
                     onReinstallPackages: reinstallPackages,
                     onCustomUpdatePackages: updatePackagesWithCustomVersions,
                     onFetchPackageVersions: fetchPackageIndexVersions,
@@ -383,13 +397,10 @@ struct ContentView: View {
                     onOpenStorageManager: refreshStorageSummary,
                     onRefreshCookieFiles: refreshImportedCookieFiles,
                     onImportCookieFile: importCookieFile,
+                    onImportCookiesFromWebsite: importBrowserCookies,
                     onPasteCookieFile: pasteCookieFile,
-                    onDeleteCookieFile: deleteImportedCookieFile,
-                    onRefreshURLAllowlists: refreshURLAllowlists,
-                    onAddURLAllowlist: addURLAllowlist,
-                    onImportURLAllowlist: importLocalURLAllowlist,
-                    onPasteURLAllowlist: addPastedURLAllowlist,
-                    onRemoveURLAllowlist: removeURLAllowlist
+                    onRenameCookieFile: renameImportedCookieFile,
+                    onDeleteCookieFile: deleteImportedCookieFile
                 )
                 .tabItem {
                     Label(String(localized: "tab.settings"), systemImage: "slider.horizontal.3")
@@ -546,21 +557,42 @@ struct ContentView: View {
         .onChange(of: customPackageSpecsText, initial: false) {
             persistPreferences()
         }
+        .onChange(of: additionalManagedPackageNames, initial: false) {
+            persistPreferences()
+        }
         .onChange(of: lockedPackageVersions, initial: false) {
             persistPreferences()
         }
         .onChange(of: youtubePatchMode, initial: false) {
             persistPreferences()
         }
-        .sheet(item: $sharePayload) { payload in
+        .sheet(item: $sharePayload, onDismiss: handleShareSheetDismissal) { payload in
             ShareSheet(activityItems: payload.activityItems)
+        }
+        .sheet(isPresented: $showDownloadQueueSheet) {
+            DownloadQueueSheetView(
+                queue: downloadQueue,
+                selectedPreset: selectedPreset,
+                isOperationBusy: isRunning || isPackageRunning || completedDownloadResult != nil,
+                onAddLinks: addLinksToDownloadQueue,
+                onStart: startDownloadQueue,
+                onPause: pauseDownloadQueue,
+                onRetry: retryDownloadQueueItem,
+                onDelete: removeDownloadQueueItem,
+                onMovePending: movePendingDownloadQueueItems,
+                onClearFinished: clearFinishedDownloadQueueItems
+            )
         }
         .sheet(isPresented: $showShareSheetDownloadPicker, onDismiss: {
             resolvePendingSharedFormatSelection()
         }) {
             shareSheetModePickerSheet
         }
-        .sheet(isPresented: $showDownloadActionSheet) {
+        .sheet(isPresented: $showDownloadActionSheet, onDismiss: {
+            guard advancePostDownloadAfterActionSheetDismissal else { return }
+            advancePostDownloadAfterActionSheetDismissal = false
+            advancePostDownloadPromptSequence()
+        }) {
             downloadCompleteActionSheet
                 .interactiveDismissDisabled(true)
         }
@@ -575,19 +607,6 @@ struct ContentView: View {
             }
         } message: {
             Text(alertMessage ?? "")
-        }
-        .alert(String(localized: "allowlists.duplicate.title"), isPresented: $showDuplicateAllowlistPrompt) {
-            Button(String(localized: "common.cancel"), role: .cancel) {
-                pendingDuplicateAllowlistURL = nil
-            }
-
-            Button(String(localized: "allowlists.duplicate.replace")) {
-                guard let urlString = pendingDuplicateAllowlistURL else { return }
-                pendingDuplicateAllowlistURL = nil
-                replaceURLAllowlist(urlString)
-            }
-        } message: {
-            Text("allowlists.duplicate.message")
         }
         .onAppear {
             installKeyboardDismissTapIfNeeded()
@@ -691,7 +710,7 @@ private extension ContentView {
         let prefix = line.split(separator: ":", maxSplits: 1).first
             .map(String.init)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let prefix, PackageSourceDefaults.lockablePackageNames.contains(prefix) else {
+        guard let prefix, allManagedPackageNames.contains(prefix) else {
             return nil
         }
         return prefix

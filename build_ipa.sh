@@ -7,6 +7,7 @@ set -e  # Exit immediately if a command fails
 PROJECT_NAME="Palladium"
 SCHEME_NAME="Palladium"
 BUILD_DIR="build"
+XCODEBUILD_OVERRIDES=()
 
 HEAD_TAG=$(git tag --points-at HEAD --sort=-v:refname | head -n 1)
 if [ -n "$HEAD_TAG" ]; then
@@ -34,56 +35,8 @@ fi
 
 echo "✅ Using SDK: $SDK"
 
-# Ensure Python extension frameworks are not codesigned in unsigned CI IPA builds.
+# Ensure Python extension frameworks are not codesigned in unsigned IPA builds.
 export PALLADIUM_DISABLE_PYTHON_DYLIB_CODESIGN=1
-
-patch_python_apple_support_utils() {
-  local utils_path="Frameworks/Python.xcframework/build/utils.sh"
-  if [ ! -f "$utils_path" ]; then
-    echo "❌ Missing $utils_path"
-    exit 1
-  fi
-
-  if grep -q "Skipping framework signing for" "$utils_path"; then
-    echo "✅ python-apple-support utils already patched for unsigned builds"
-    return
-  fi
-
-  echo "🔧 Patching python-apple-support utils.sh for unsigned IPA builds..."
-  python3 - "$utils_path" <<'PY'
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as f:
-    text = f.read()
-
-old = """    echo "Signing framework as $EXPANDED_CODE_SIGN_IDENTITY_NAME ($EXPANDED_CODE_SIGN_IDENTITY)..."
-    /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" ${OTHER_CODE_SIGN_FLAGS:-} -o runtime --timestamp=none --preserve-metadata=identifier,entitlements,flags --generate-entitlement-der "$CODESIGNING_FOLDER_PATH/$FRAMEWORK_FOLDER"
-"""
-
-new = """    SIGN_IDENTITY_TRIMMED=$(echo "${EXPANDED_CODE_SIGN_IDENTITY:-}" | tr -d '[:space:]')
-    if [ "$EFFECTIVE_PLATFORM_NAME" = "-iphonesimulator" ] || [ "${CODE_SIGNING_ALLOWED:-YES}" != "YES" ] || [ -z "$SIGN_IDENTITY_TRIMMED" ]; then
-        echo "Skipping framework signing for $FRAMEWORK_FOLDER (simulator, unsigned build, or missing identity)."
-    else
-        echo "Signing framework as $EXPANDED_CODE_SIGN_IDENTITY_NAME ($EXPANDED_CODE_SIGN_IDENTITY)..."
-        /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" ${OTHER_CODE_SIGN_FLAGS:-} -o runtime --timestamp=none --preserve-metadata=identifier,entitlements,flags --generate-entitlement-der "$CODESIGNING_FOLDER_PATH/$FRAMEWORK_FOLDER"
-    fi
-"""
-
-if old not in text:
-    if "Skipping framework signing for" in text:
-        print("utils.sh already patched; no changes needed")
-        sys.exit(0)
-    print("expected signing block not found in utils.sh", file=sys.stderr)
-    sys.exit(1)
-
-text = text.replace(old, new, 1)
-with open(path, "w", encoding="utf-8") as f:
-    f.write(text)
-PY
-}
-
-patch_python_apple_support_utils
 
 # -----------------------------
 # Clean build directory
@@ -101,6 +54,7 @@ xcodebuild clean build \
   -configuration Release \
   -destination "generic/platform=iOS" \
   -sdk "$SDK" \
+  "${XCODEBUILD_OVERRIDES[@]}" \
   PALLADIUM_DISABLE_PYTHON_DYLIB_CODESIGN=1 \
   CODE_SIGN_IDENTITY="" \
   CODE_SIGNING_REQUIRED=NO \
@@ -117,6 +71,7 @@ xcodebuild archive \
   -archivePath "$BUILD_DIR/archive.xcarchive" \
   -destination "generic/platform=iOS" \
   -sdk "$SDK" \
+  "${XCODEBUILD_OVERRIDES[@]}" \
   PALLADIUM_DISABLE_PYTHON_DYLIB_CODESIGN=1 \
   CODE_SIGN_IDENTITY="" \
   CODE_SIGNING_REQUIRED=NO \

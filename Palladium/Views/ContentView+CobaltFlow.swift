@@ -11,7 +11,7 @@ extension ContentView {
 
     /// Called by runDownloadFlow() when the user has selected the Cobalt engine.
     func runCobaltDownloadFlow(urlString: String, afterDownloadOverride: AfterDownloadBehavior? = nil) {
-        guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist else { return }
+        guard !isRunning, !isPackageRunning else { return }
         guard !urlString.isEmpty, let inputURL = URL(string: urlString) else {
             downloadErrorText = "Invalid URL"
             return
@@ -91,7 +91,7 @@ extension ContentView {
                 progressText = "Downloading file…"
                 let localURL = try await downloadCobaltFile(from: mediaURL, filename: filename)
                 if downloadCancelRequested { throw CancellationError() }
-                await finishCobaltDownload(fileURL: localURL, title: title, behavior: behavior)
+                await finishCobaltDownload(fileURL: localURL, title: title, sourceURL: inputURL, behavior: behavior)
 
             case .pickerOptions(let options, let title):
                 appendConsoleText("[cobalt] 📋 Picker: \(options.count) options\n")
@@ -107,7 +107,7 @@ extension ContentView {
                     }
                 )
                 if downloadCancelRequested { throw CancellationError() }
-                await finishCobaltDownload(fileURL: processedURL, title: title, behavior: behavior)
+                await finishCobaltDownload(fileURL: processedURL, title: title, sourceURL: inputURL, behavior: behavior)
             }
 
         } catch is CancellationError {
@@ -201,7 +201,7 @@ extension ContentView {
     // MARK: - Post Download
 
     @MainActor
-    private func finishCobaltDownload(fileURL: URL, title: String?, behavior: AfterDownloadBehavior) async {
+    private func finishCobaltDownload(fileURL: URL, title: String?, sourceURL: URL?, behavior: AfterDownloadBehavior) async {
         appendConsoleText("[cobalt] ✅ File ready: \(fileURL.lastPathComponent)\n")
         progressText = "Download complete"
         statusText = "idle"
@@ -213,7 +213,8 @@ extension ContentView {
             items: [fileURL],
             primaryMediaURL: fileURL,
             folderURL: fileURL.deletingLastPathComponent(),
-            titleHint: title
+            titleHint: title,
+            sourceURL: sourceURL
         )
         completedDownloadResult = result
 

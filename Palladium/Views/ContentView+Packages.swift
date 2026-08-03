@@ -17,14 +17,15 @@ extension ContentView {
         action: PackageAction,
         customVersions: [String: String]? = nil,
         payloadZipPath: String? = nil,
+        packageName: String? = nil,
         temporaryPayloadZipURL: URL? = nil,
         updateWhenAvailable: Bool = false,
         isAutomaticUpdate: Bool = false
     ) {
-        guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else { return }
+        guard !isRunning, !isPackageRunning, !isResolvingGallery else { return }
 
         isPackageRunning = true
-        isAutomaticallyUpdatingPackages = isAutomaticUpdate
+        isAutomaticallyUpdatingPackages = isAutomaticUpdate || action == .reinstall
         syncIdleTimerDisabled()
         packageStatusText = action.initialStatusText
         isLoadingPackageVersions = action == .indexVersions
@@ -59,7 +60,9 @@ extension ContentView {
                 action: action,
                 customVersions: customVersions,
                 packageSourceJSON: buildPackageSourceJSON(),
+                managedPackageNames: allManagedPackageNames,
                 payloadZipPath: payloadZipPath,
+                packageName: packageName,
                 liveLogFD: liveLogFD
             )
             if let temporaryPayloadZipURL {
@@ -90,6 +93,18 @@ extension ContentView {
             isLoadingPackageVersions = false
             packageStatusText = outcome.statusText
             appendConsoleText("\n\(outcome.summaryText)\n")
+            let removedManagedPackageNames = Set(outcome.removedManagedPackageNames)
+            if !removedManagedPackageNames.isEmpty {
+                additionalManagedPackageNames.removeAll {
+                    removedManagedPackageNames.contains($0)
+                }
+                lockedPackageVersions = lockedPackageVersions.filter {
+                    !removedManagedPackageNames.contains($0.key)
+                }
+                availablePackageVersions = availablePackageVersions.filter {
+                    !removedManagedPackageNames.contains($0.key)
+                }
+            }
             if let versionsText = outcome.versionsText {
                 self.versionsText = versionsText
                 persistPackageVersionsText(versionsText)
@@ -110,12 +125,16 @@ extension ContentView {
             if outcome.restartRequired {
                 alertMessage = String(localized: "settings.advanced.restart_required")
                 showAlert = true
+            } else if outcome.patchStateWarning {
+                alertMessage = String(localized: "settings.advanced.patch_state_warning")
+                showAlert = true
             }
             self.hasLoadedPackageStatus = true
             Self.logger.info("package flow finished with status: \(outcome.statusText, privacy: .public)")
 
-            if action == .check, updateWhenAvailable, updatesAvailable {
-                guard !isRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else {
+            let shouldAutomaticallyUpdate = updatesAvailable || outcome.runtimePackagesMissing == true
+            if action == .check, updateWhenAvailable, shouldAutomaticallyUpdate {
+                guard !isRunning, !isResolvingGallery else {
                     appendConsoleText("[palladium] automatic package update skipped because a download is starting\n")
                     return
                 }
@@ -163,6 +182,11 @@ extension ContentView {
         runPackageFlow(action: .restorePipPackages)
     }
 
+    func removeManagedPackage(_ packageName: String) {
+        guard additionalManagedPackageNames.contains(packageName) else { return }
+        runPackageFlow(action: .removePackage, packageName: packageName)
+    }
+
     func updatePackagesWithCustomVersions(_ customVersions: [String: String]) {
         guard packageSourceMode != .custom else { return }
         guard !customVersions.isEmpty else { return }
@@ -170,7 +194,7 @@ extension ContentView {
     }
 
     func installPackagePayloadZip(from sourceURL: URL) {
-        guard !isRunning, !isPackageRunning, !isCheckingDownloadAllowlist, !isResolvingGallery else { return }
+        guard !isRunning, !isPackageRunning, !isResolvingGallery else { return }
 
         do {
             let temporaryPayloadZipURL = try copyPayloadZipToTemporaryStorage(from: sourceURL)
@@ -198,10 +222,17 @@ extension ContentView {
 
     func buildPackageSourceJSON() -> String {
         let specs = customPackageSpecs()
+        let additionalPackages = PackageSourceDefaults.normalizedAdditionalPackageNames(
+            additionalManagedPackageNames
+        )
         let payload: [String: Any] = [
             "mode": packageSourceMode.rawValue,
             "custom_specs": specs,
-            "locked_versions": Self.normalizedLockedPackageVersions(lockedPackageVersions),
+            "additional_packages": additionalPackages,
+            "locked_versions": Self.normalizedLockedPackageVersions(
+                lockedPackageVersions,
+                additionalManagedPackageNames: additionalPackages
+            ),
             "youtube_patch_mode": youtubePatchMode.rawValue
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
@@ -209,6 +240,12 @@ extension ContentView {
             return "{\"mode\":\"stable\",\"custom_specs\":[]}"
         }
         return text
+    }
+
+    var allManagedPackageNames: [String] {
+        PackageSourceDefaults.allManagedPackageNames(
+            additionalPackageNames: additionalManagedPackageNames
+        )
     }
 
     func customPackageSpecs() -> [String] {

@@ -10,11 +10,17 @@ struct DownloadQualitySettingsView: View {
     @AppStorage(DownloadQualityPreferences.videoCodecKey)
     private var videoCodec = VideoDownloadCodec.photosCompatible.rawValue
 
+    @AppStorage(DownloadQualityPreferences.videoAudioPresetKey)
+    private var videoAudioPreset = VideoDownloadAudioPreset.bestCompatible.rawValue
+
     @AppStorage(DownloadQualityPreferences.audioFormatKey)
     private var audioFormat = AudioDownloadFormat.mp3.rawValue
 
     @AppStorage(DownloadQualityPreferences.audioQualityKey)
     private var audioQuality = AudioDownloadQuality.best.rawValue
+
+    @AppStorage(DownloadQualityPreferences.overrideFormatListExportKey)
+    private var overrideFormatListExport = false
 
     let isRunning: Bool
 
@@ -38,10 +44,19 @@ struct DownloadQualitySettingsView: View {
                         Text(codec.title).tag(codec.rawValue)
                     }
                 }
+
+                Picker("download.quality.video.audio_preset.title", selection: $videoAudioPreset) {
+                    ForEach(VideoDownloadAudioPreset.allCases) { preset in
+                        Text(preset.title).tag(preset.rawValue)
+                    }
+                }
             } header: {
                 Text("Video")
             } footer: {
-                Text("H.264 and H.265/HEVC in MP4 are compatible with the Photos app. H.264 is preferred when both are available.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("download.quality.video.codec_help")
+                    Text("download.quality.video.audio_preset.help")
+                }
             }
 
             Section {
@@ -59,7 +74,16 @@ struct DownloadQualitySettingsView: View {
             } header: {
                 Text("Audio")
             } footer: {
-                Text("Best keeps the highest available source quality before conversion.")
+                Text("download.quality.audio.best_help")
+            }
+
+            Section {
+                Toggle(
+                    "download.quality.override_format_list_export.title",
+                    isOn: $overrideFormatListExport
+                )
+            } footer: {
+                Text("download.quality.override_format_list_export.help")
             }
         }
         .disabled(isRunning)

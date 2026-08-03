@@ -47,486 +47,6 @@
         }
       }
     },
-    "allowlists.add.button" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Allowlist"
-          }
-        }
-      }
-    },
-    "allowlists.add.message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a remote allowlist JSON URL."
-          }
-        }
-      }
-    },
-    "allowlists.add.placeholder" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "https://example.com/allowlist.json"
-          }
-        }
-      }
-    },
-    "allowlists.add.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Allowlist"
-          }
-        }
-      }
-    },
-    "allowlists.allowed.by" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allowed by %@"
-          }
-        }
-      }
-    },
-    "allowlists.blocked.invalid_url" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a valid http or https URL."
-          }
-        }
-      }
-    },
-    "allowlists.blocked.no_entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No download allowlist entries are available. Refresh allowlists in Settings and try again."
-          }
-        }
-      }
-    },
-    "allowlists.blocked.not_allowed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This URL is not allowed by the configured download allowlists."
-          }
-        }
-      }
-    },
-    "allowlists.default.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Default allowlist"
-          }
-        }
-      }
-    },
-    "allowlists.duplicate.message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This allowlist is already added. Replace it by fetching the latest copy?"
-          }
-        }
-      }
-    },
-    "allowlists.duplicate.replace" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replace"
-          }
-        }
-      }
-    },
-    "allowlists.duplicate.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replace Allowlist?"
-          }
-        }
-      }
-    },
-    "allowlists.entry.fallback_name" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entry %lld"
-          }
-        }
-      }
-    },
-    "allowlists.error.duplicate_source" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "That allowlist is already added."
-          }
-        }
-      }
-    },
-    "allowlists.error.empty_document" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The allowlist did not contain any enabled entries."
-          }
-        }
-      }
-    },
-    "allowlists.error.http_status" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server returned HTTP %lld."
-          }
-        }
-      }
-    },
-    "allowlists.error.invalid_local_file" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a JSON allowlist file."
-          }
-        }
-      }
-    },
-    "allowlists.error.invalid_source" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter a valid https allowlist URL."
-          }
-        }
-      }
-    },
-    "allowlists.error.unsupported_version" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The allowlist format version is not supported."
-          }
-        }
-      }
-    },
-    "allowlists.help" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download URLs must match at least one enabled regex entry from the default allowlist or a custom allowlist."
-          }
-        }
-      }
-    },
-    "allowlists.import.button" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Local Allowlist"
-          }
-        }
-      }
-    },
-    "allowlists.last_refresh" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Last refreshed %@"
-          }
-        }
-      }
-    },
-    "allowlists.paste.add" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add"
-          }
-        }
-      }
-    },
-    "allowlists.paste.button" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paste Allowlist JSON"
-          }
-        }
-      }
-    },
-    "allowlists.paste.message" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paste a version 1 allowlist JSON document."
-          }
-        }
-      }
-    },
-    "allowlists.paste.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paste Allowlist JSON"
-          }
-        }
-      }
-    },
-    "allowlists.refresh.button" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refresh Allowlists"
-          }
-        }
-      }
-    },
-    "allowlists.sources.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sources"
-          }
-        }
-      }
-    },
-    "allowlists.status.add_failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to add allowlist: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.added" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added %@."
-          }
-        }
-      }
-    },
-    "allowlists.status.built_in" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Using %lld built-in default entries."
-          }
-        }
-      }
-    },
-    "allowlists.status.cached" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Using %lld cached entries."
-          }
-        }
-      }
-    },
-    "allowlists.status.checking" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checking URL allowlists..."
-          }
-        }
-      }
-    },
-    "allowlists.status.failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.fetching" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fetching..."
-          }
-        }
-      }
-    },
-    "allowlists.status.import_failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to import allowlist: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.imported" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imported allowlist: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.importing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Importing allowlist..."
-          }
-        }
-      }
-    },
-    "allowlists.status.invalid_source" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid source URL."
-          }
-        }
-      }
-    },
-    "allowlists.status.loaded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loaded %lld entries."
-          }
-        }
-      }
-    },
-    "allowlists.status.not_loaded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not loaded yet."
-          }
-        }
-      }
-    },
-    "allowlists.status.paste_failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to add pasted allowlist: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.pasted" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added pasted allowlist: %@"
-          }
-        }
-      }
-    },
-    "allowlists.status.pasting" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adding pasted allowlist..."
-          }
-        }
-      }
-    },
-    "allowlists.status.refresh_complete" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allowlists refreshed."
-          }
-        }
-      }
-    },
-    "allowlists.status.replaced" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Replaced %@."
-          }
-        }
-      }
-    },
-    "allowlists.subtitle" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld sources configured"
-          }
-        }
-      }
-    },
-    "allowlists.title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL Allowlists"
-          }
-        }
-      }
-    },
     "app.name" : {
       "localizations" : {
         "en" : {
@@ -569,10 +89,6 @@
     },
     "Audio" : {
       "comment" : "A label displayed above the audio quality and format settings.",
-      "isCommentAutoGenerated" : true
-    },
-    "Best keeps the highest available source quality before conversion." : {
-      "comment" : "A description of the best audio quality option.",
       "isCommentAutoGenerated" : true
     },
     "Cancel" : {
@@ -703,12 +219,12 @@
         }
       }
     },
-    "common.save" : {
+    "common.rename" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Save"
+            "value" : "Rename"
           }
         }
       }
@@ -823,6 +339,16 @@
         }
       }
     },
+    "cookies.error.invalid_url" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a valid HTTP or HTTPS website URL."
+          }
+        }
+      }
+    },
     "cookies.error.name_conflict" : {
       "localizations" : {
         "en" : {
@@ -839,6 +365,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The selected file could not be read as text."
+          }
+        }
+      }
+    },
+    "cookies.error.web_no_cookies" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cookies were found. Sign in or continue browsing before importing."
           }
         }
       }
@@ -903,6 +439,16 @@
         }
       }
     },
+    "cookies.name.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cookie name"
+          }
+        }
+      }
+    },
     "cookies.path.documents" : {
       "localizations" : {
         "en" : {
@@ -923,12 +469,12 @@
         }
       }
     },
-    "cookies.selected.title" : {
+    "cookies.rename.title" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Default Selection"
+            "value" : "Rename Cookie File"
           }
         }
       }
@@ -943,12 +489,122 @@
         }
       }
     },
+    "cookies.switch.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cookies can also be switched on the main page using “More options”."
+          }
+        }
+      }
+    },
     "cookies.toast.imported" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Imported cookie file: %@"
+          }
+        }
+      }
+    },
+    "cookies.toast.renamed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renamed cookie file: %@"
+          }
+        }
+      }
+    },
+    "cookies.web.browser.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in, then tap Import to save this private browser session as a Netscape cookie file."
+          }
+        }
+      }
+    },
+    "cookies.web.browser.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website Login"
+          }
+        }
+      }
+    },
+    "cookies.web.button" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from Website"
+          }
+        }
+      }
+    },
+    "cookies.web.import" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        }
+      }
+    },
+    "cookies.web.open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Login Page"
+          }
+        }
+      }
+    },
+    "cookies.web.privacy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The login opens in a private browser session. Palladium saves its cookies only when you tap Import."
+          }
+        }
+      }
+    },
+    "cookies.web.url.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the website where you want to sign in."
+          }
+        }
+      }
+    },
+    "cookies.web.url.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "example.com"
+          }
+        }
+      }
+    },
+    "cookies.web.url.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Website Cookies"
           }
         }
       }
@@ -1091,17 +747,6 @@
         }
       }
     },
-    "download.formats.audio" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Audio only"
-          }
-        }
-      }
-    },
     "download.formats.audio_section" : {
       "localizations" : {
         "en" : {
@@ -1178,28 +823,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose Format"
-          }
-        }
-      }
-    },
-    "download.formats.video" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Video only"
-          }
-        }
-      }
-    },
-    "download.formats.video_audio" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Video and audio"
           }
         }
       }
@@ -1624,6 +1247,94 @@
         }
       }
     },
+    "download.quality.audio.best_help" : {
+      "comment" : "A description of the best audio format and quality options.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format and bitrate choices apply when using the Audio preset."
+          }
+        }
+      }
+    },
+    "download.quality.override_format_list_export.help" : {
+      "comment" : "Help text explaining the format-list export override setting.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply the video and audio Quality Settings when exporting a format selected from the format list."
+          }
+        }
+      }
+    },
+    "download.quality.override_format_list_export.title" : {
+      "comment" : "A toggle that applies Quality Settings to format-list exports.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Override format-list export"
+          }
+        }
+      }
+    },
+    "download.quality.video.audio_preset.best_compatible" : {
+      "comment" : "The video audio preset that favors broad playback compatibility.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best Compatible"
+          }
+        }
+      }
+    },
+    "download.quality.video.audio_preset.best_quality" : {
+      "comment" : "The video audio preset that favors the highest available source quality.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best Quality"
+          }
+        }
+      }
+    },
+    "download.quality.video.audio_preset.help" : {
+      "comment" : "Help text explaining the audio preset used for video downloads.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best Compatible prefers AAC audio for broader playback support. Best Quality keeps the best available source audio without preferring a codec."
+          }
+        }
+      }
+    },
+    "download.quality.video.audio_preset.title" : {
+      "comment" : "The label for choosing an audio preset for video downloads.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio Preset"
+          }
+        }
+      }
+    },
+    "download.quality.video.codec_help" : {
+      "comment" : "A description of the video codec compatibility options.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "H.264 and H.265/HEVC in MP4 are compatible with the Photos app. H.264 is preferred when both are available."
+          }
+        }
+      }
+    },
     "download.share.fill_url" : {
       "localizations" : {
         "en" : {
@@ -1908,10 +1619,6 @@
         }
       }
     },
-    "H.264 and H.265/HEVC in MP4 are compatible with the Photos app. H.264 is preferred when both are available." : {
-      "comment" : "A description of the video quality options.",
-      "isCommentAutoGenerated" : true
-    },
     "history.empty.subtitle" : {
       "localizations" : {
         "en" : {
@@ -2002,6 +1709,56 @@
         }
       }
     },
+    "packages.custom_update.add_package" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custom Package"
+          }
+        }
+      }
+    },
+    "packages.custom_update.add_package.confirm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add and Install"
+          }
+        }
+      }
+    },
+    "packages.custom_update.add_package.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a pip package name. The package will be installed now and managed during future updates."
+          }
+        }
+      }
+    },
+    "packages.custom_update.add_package.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Package name"
+          }
+        }
+      }
+    },
+    "packages.custom_update.add_package.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custom Package"
+          }
+        }
+      }
+    },
     "packages.custom_update.help" : {
       "localizations" : {
         "en" : {
@@ -2018,6 +1775,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lock %@ to selected version"
+          }
+        }
+      }
+    },
+    "packages.custom_update.remove_package" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop managing %@"
           }
         }
       }
@@ -2187,7 +1954,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This removes imported payload packages and reinstalls packages from the configured package source."
+            "value" : "This removes imported payload packages and user-added managed packages, then reinstalls the remaining packages from the configured source."
           }
         }
       }
@@ -2207,7 +1974,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Removes payload-installed packages and reinstalls runtime packages with pip."
+            "value" : "Removes payload-installed and user-added managed packages, then reinstalls the remaining runtime packages with pip."
           }
         }
       }
@@ -2402,6 +2169,16 @@
         }
       }
     },
+    "packages.status.removing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removing package..."
+          }
+        }
+      }
+    },
     "packages.status.restoring" : {
       "localizations" : {
         "en" : {
@@ -2582,6 +2359,16 @@
         }
       }
     },
+    "photos.error.mixed_collection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every file in this group must be compatible with Photos."
+          }
+        }
+      }
+    },
     "photos.error.no_video_track" : {
       "localizations" : {
         "en" : {
@@ -2638,6 +2425,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unsupported image format (%@)."
+          }
+        }
+      }
+    },
+    "photos.error.unsupported_media_group" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio and other files cannot be saved to Photos."
           }
         }
       }
@@ -2732,6 +2529,26 @@
         }
       }
     },
+    "post_download.action.skip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        }
+      }
+    },
+    "post_download.error.missing_service" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source service could not be determined from the download address."
+          }
+        }
+      }
+    },
     "post_download.error.no_files" : {
       "localizations" : {
         "en" : {
@@ -2767,7 +2584,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This download produced %lld files. Photos import is disabled for collections and subtitle sidecars."
+            "value" : "Choose what to do with these %lld downloaded files."
           }
         }
       }
@@ -2792,6 +2609,46 @@
         }
       }
     },
+    "post_download.title.audio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio Downloaded"
+          }
+        }
+      }
+    },
+    "post_download.title.files" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files Downloaded"
+          }
+        }
+      }
+    },
+    "post_download.title.images" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Images Downloaded"
+          }
+        }
+      }
+    },
+    "post_download.title.videos" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videos Downloaded"
+          }
+        }
+      }
+    },
     "post_download.toast.saved_folder" : {
       "localizations" : {
         "en" : {
@@ -2808,6 +2665,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saved folder: %@"
+          }
+        }
+      }
+    },
+    "queue.add" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Links"
+          }
+        }
+      }
+    },
+    "queue.busy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish the current operation before starting the queue."
+          }
+        }
+      }
+    },
+    "queue.clear_finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Finished"
+          }
+        }
+      }
+    },
+    "queue.current" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
+          }
+        }
+      }
+    },
+    "queue.empty.subtitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add one link per line to create a download queue."
+          }
+        }
+      }
+    },
+    "queue.empty.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No queued links"
+          }
+        }
+      }
+    },
+    "queue.finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished"
+          }
+        }
+      }
+    },
+    "queue.images.unsupported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Images uses an item picker and cannot be queued yet. Choose another download mode."
+          }
+        }
+      }
+    },
+    "queue.links.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blank lines are ignored. Links are kept in the order entered."
+          }
+        }
+      }
+    },
+    "queue.links.placeholder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://example.com/video-one\nhttps://example.com/video-two"
+          }
+        }
+      }
+    },
+    "queue.links.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links"
+          }
+        }
+      }
+    },
+    "queue.open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open download queue"
+          }
+        }
+      }
+    },
+    "queue.pause" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause After Current"
+          }
+        }
+      }
+    },
+    "queue.pause.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausing lets the current item finish and prevents the next one from starting."
+          }
+        }
+      }
+    },
+    "queue.pending" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending"
+          }
+        }
+      }
+    },
+    "queue.progress.value" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queue %lld of %lld"
+          }
+        }
+      }
+    },
+    "queue.resume" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume Queue"
+          }
+        }
+      }
+    },
+    "queue.retry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        }
+      }
+    },
+    "queue.snapshot.value" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New links will use the current %@ options."
+          }
+        }
+      }
+    },
+    "queue.start" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Queue"
+          }
+        }
+      }
+    },
+    "queue.status.awaiting_action" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for action"
+          }
+        }
+      }
+    },
+    "queue.status.cancelled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled"
+          }
+        }
+      }
+    },
+    "queue.status.failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        }
+      }
+    },
+    "queue.status.partial" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partially completed"
+          }
+        }
+      }
+    },
+    "queue.status.pending" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending"
+          }
+        }
+      }
+    },
+    "queue.status.running" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading"
+          }
+        }
+      }
+    },
+    "queue.status.succeeded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        }
+      }
+    },
+    "queue.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Queue"
           }
         }
       }
@@ -2835,6 +2972,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "About"
+          }
+        }
+      }
+    },
+    "settings.advanced.patch_state_warning" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some installed runtime files still use a different YouTube patch mode. Review the package log and reinstall packages before downloading."
           }
         }
       }
@@ -2915,6 +3062,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "EJS scripts"
+          }
+        }
+      }
+    },
+    "settings.advanced.youtube_patch_mode.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinstall packages to apply a changed runtime patch mode."
           }
         }
       }
@@ -3185,17 +3342,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Controls the mode used when a link is sent to Palladium from another app."
-          }
-        }
-      }
-    },
-    "settings.download_modes.share_section" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share Sheet"
           }
         }
       }
@@ -3630,6 +3776,46 @@
         }
       }
     },
+    "settings.saved_downloads.always_folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always create a folder"
+          }
+        }
+      }
+    },
+    "settings.saved_downloads.help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service folders add a parent based on the source service. Subdomains and known short-link domains share one folder. Collections still use their own folder; single downloads use one only when Always create a folder is enabled."
+          }
+        }
+      }
+    },
+    "settings.saved_downloads.organize_by_service" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organize by service"
+          }
+        }
+      }
+    },
+    "settings.saved_downloads.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved downloads"
+          }
+        }
+      }
+    },
     "settings.ui.after_download.help" : {
       "localizations" : {
         "en" : {
@@ -3695,7 +3881,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When enabled, the Downloads tab also shows temporary download runs from Palladium/Temp."
+            "value" : "When enabled, Palladium keeps completed downloads in Palladium/Temp and shows them in the Downloads tab. Saving to Saved Files copies them without removing the temporary originals."
           }
         }
       }

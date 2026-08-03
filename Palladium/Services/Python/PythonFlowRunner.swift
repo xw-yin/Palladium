@@ -102,6 +102,14 @@ struct YTDLPFormat: Identifiable, Hashable, Sendable {
         }
         return "\(id)+bestaudio/best"
     }
+
+    func downloadOverrideArguments(usesQualitySettings: Bool) -> String {
+        var arguments = "--format \(downloadSelector)"
+        if hasAudio && !hasVideo && !usesQualitySettings {
+            arguments += " --extract-audio --audio-format best"
+        }
+        return arguments
+    }
 }
 
 struct YTDLPFormatResolution: Sendable {
@@ -232,7 +240,9 @@ enum PythonFlowRunner {
         action: PackageAction,
         customVersions: [String: String]? = nil,
         packageSourceJSON: String,
+        managedPackageNames: [String],
         payloadZipPath: String? = nil,
+        packageName: String? = nil,
         liveLogFD: Int32?
     ) async -> PythonFlowOutcome {
         await runOnPythonThread {
@@ -257,14 +267,15 @@ enum PythonFlowRunner {
                         customVersionsJSON,
                         liveLogArgument,
                         packageSourceJSON,
-                        payloadZipPathArgument
+                        payloadZipPathArgument,
+                        packageName ?? ""
                     ]
                 )
                 payload = String(result) ?? ""
             } catch {
                 payload = fallbackPythonErrorPayload(error)
             }
-            return decodePackagePayload(payload)
+            return decodePackagePayload(payload, managedPackageNames: managedPackageNames)
         }
     }
 
@@ -337,6 +348,7 @@ enum PythonFlowRunner {
             "updates_summary": isCancelled ? "Cancelled." : "Not checked yet.",
             "versions": [:],
             "available_versions": [:],
+            "patch_state_warning": false,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let text = String(data: data, encoding: .utf8) else {
@@ -368,7 +380,9 @@ enum PythonFlowRunner {
                 updatesSummary: nil,
                 availableVersions: nil,
                 runtimePackagesMissing: nil,
-                restartRequired: false
+                restartRequired: false,
+                patchStateWarning: false,
+                removedManagedPackageNames: []
             )
         }
 
@@ -407,7 +421,9 @@ enum PythonFlowRunner {
             updatesSummary: nil,
             availableVersions: nil,
             runtimePackagesMissing: nil,
-            restartRequired: false
+            restartRequired: false,
+            patchStateWarning: false,
+            removedManagedPackageNames: []
         )
     }
 
@@ -470,7 +486,10 @@ enum PythonFlowRunner {
         )
     }
 
-    private static func decodePackagePayload(_ payload: String) -> PythonFlowOutcome {
+    private static func decodePackagePayload(
+        _ payload: String,
+        managedPackageNames: [String]
+    ) -> PythonFlowOutcome {
         guard let data = payload.data(using: .utf8),
               let result = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return PythonFlowOutcome(
@@ -493,7 +512,9 @@ enum PythonFlowRunner {
                 updatesSummary: nil,
                 availableVersions: nil,
                 runtimePackagesMissing: nil,
-                restartRequired: false
+                restartRequired: false,
+                patchStateWarning: false,
+                removedManagedPackageNames: []
             )
         }
 
@@ -504,10 +525,25 @@ enum PythonFlowRunner {
         let updatesAvailable = result["updates_available"] as? Bool ?? false
         let updatesSummary = result["updates_summary"] as? String ?? "Not checked yet."
         let restartRequired = result["restart_required"] as? Bool ?? false
+        let patchStateWarning = result["patch_state_warning"] as? Bool ?? false
+        let removedManagedPackageNames = result["removed_additional_packages"] as? [String] ?? []
+        let removedManagedPackageNameSet = Set(removedManagedPackageNames)
+        let activeManagedPackageNames = managedPackageNames.filter {
+            !removedManagedPackageNameSet.contains($0)
+        }
         let output = result["output"] as? String ?? ""
-        let versions = normalizedVersions(from: result["versions"])
-        let runtimePackagesMissing = hasMissingRuntimePackages(in: versions)
-        let availableVersions = normalizedAvailableVersions(from: result["available_versions"])
+        let versions = normalizedVersions(
+            from: result["versions"],
+            packageNames: activeManagedPackageNames
+        )
+        let runtimePackagesMissing = hasMissingRuntimePackages(
+            in: versions,
+            packageNames: activeManagedPackageNames
+        )
+        let availableVersions = normalizedAvailableVersions(
+            from: result["available_versions"],
+            packageNames: activeManagedPackageNames
+        )
 
         let summary = """
         pip attempted: \(pipAttempted)
@@ -518,16 +554,13 @@ enum PythonFlowRunner {
         success: \(success)
         """
 
-        var versionLines = [
-            "yt-dlp: \(versions["yt-dlp"] ?? "not installed")",
-            "yt-dlp-apple-webkit-jsi: \(versions["yt-dlp-apple-webkit-jsi"] ?? "not installed")",
-            "curl-cffi: \(versions["curl-cffi"] ?? "not installed")",
-            "gallery-dl: \(versions["gallery-dl"] ?? "not installed")"
-        ]
-        if let pipVersion = versions["pip"],
-           !pipVersion.isEmpty,
-           pipVersion.lowercased() != "not installed" {
-            versionLines.append("pip: \(pipVersion)")
+        let versionLines: [String] = activeManagedPackageNames.compactMap { packageName in
+            let version = versions[packageName] ?? "not installed"
+            if packageName.lowercased() == "pip",
+               version.isEmpty || version.lowercased() == "not installed" {
+                return nil
+            }
+            return "\(packageName): \(version)"
         }
         let versionsText = versionLines.joined(separator: "\n")
 
@@ -546,7 +579,9 @@ enum PythonFlowRunner {
             updatesSummary: updatesSummary,
             availableVersions: availableVersions,
             runtimePackagesMissing: runtimePackagesMissing,
-            restartRequired: restartRequired
+            restartRequired: restartRequired,
+            patchStateWarning: patchStateWarning,
+            removedManagedPackageNames: removedManagedPackageNames
         )
     }
 
@@ -556,10 +591,13 @@ enum PythonFlowRunner {
         await PythonExecutor.shared.run(work)
     }
 
-    private static func normalizedVersions(from value: Any?) -> [String: String] {
+    private static func normalizedVersions(
+        from value: Any?,
+        packageNames: [String]
+    ) -> [String: String] {
         guard let raw = value as? [String: Any] else { return [:] }
         var result: [String: String] = [:]
-        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl", "pip"] {
+        for key in packageNames {
             guard let item = raw[key] else { continue }
             let versionText = String(describing: item).trimmingCharacters(in: .whitespacesAndNewlines)
             if !versionText.isEmpty {
@@ -569,8 +607,11 @@ enum PythonFlowRunner {
         return result
     }
 
-    private static func hasMissingRuntimePackages(in versions: [String: String]) -> Bool {
-        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl"] {
+    private static func hasMissingRuntimePackages(
+        in versions: [String: String],
+        packageNames: [String]
+    ) -> Bool {
+        for key in packageNames where key.lowercased() != "pip" {
             let versionText = versions[key]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
             if versionText.isEmpty || versionText == "not installed" || versionText == "unknown" {
                 return true
@@ -579,10 +620,13 @@ enum PythonFlowRunner {
         return false
     }
 
-    private static func normalizedAvailableVersions(from value: Any?) -> [String: [String]] {
+    private static func normalizedAvailableVersions(
+        from value: Any?,
+        packageNames: [String]
+    ) -> [String: [String]] {
         guard let raw = value as? [String: Any] else { return [:] }
         var result: [String: [String]] = [:]
-        for key in ["yt-dlp", "yt-dlp-apple-webkit-jsi", "curl-cffi", "gallery-dl", "pip"] {
+        for key in packageNames {
             guard let list = raw[key] as? [Any] else { continue }
             let values = list.map { String(describing: $0).trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -668,6 +712,8 @@ struct PythonFlowOutcome: Sendable {
     let availableVersions: [String: [String]]?
     let runtimePackagesMissing: Bool?
     let restartRequired: Bool
+    let patchStateWarning: Bool
+    let removedManagedPackageNames: [String]
 }
 
 struct PlaylistProgressSnapshot: Sendable {

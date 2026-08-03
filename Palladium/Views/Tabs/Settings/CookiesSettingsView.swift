@@ -2,17 +2,25 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct CookiesSettingsView: View {
+    @Binding var useCookies: Bool
     @Binding var selectedCookieFileName: String
+    @Binding var defaultUseCookies: Bool
     let importedCookieFiles: [ImportedCookieFile]
     let isBusy: Bool
     let onRefresh: () -> Void
     let onImport: (_ sourceURL: URL) throws -> Void
-    let onPaste: (_ rawText: String) throws -> Void
+    let onImportFromWebsite: (_ cookies: [HTTPCookie], _ sourceURL: URL) throws -> Void
+    let onPaste: (_ rawText: String, _ preferredName: String) throws -> Void
+    let onRename: (_ cookieFile: ImportedCookieFile, _ newName: String) throws -> Void
     let onDelete: (_ cookieFile: ImportedCookieFile) throws -> Void
 
     @State private var showFileImporter = false
+    @State private var showWebsiteImporter = false
     @State private var showPasteCookiesSheet = false
     @State private var pastedCookiesText = ""
+    @State private var pastedCookiesName = "pasted-cookies"
+    @State private var cookieFileToRename: ImportedCookieFile?
+    @State private var renamedCookieName = ""
     @State private var errorMessage: String?
 
     var body: some View {
@@ -29,7 +37,15 @@ struct CookiesSettingsView: View {
                 .disabled(isBusy)
 
                 Button {
+                    showWebsiteImporter = true
+                } label: {
+                    Label("cookies.web.button", systemImage: "globe")
+                }
+                .disabled(isBusy)
+
+                Button {
                     pastedCookiesText = ""
+                    pastedCookiesName = "pasted-cookies"
                     showPasteCookiesSheet = true
                 } label: {
                     Label("cookies.paste.button", systemImage: "doc.on.clipboard")
@@ -42,17 +58,7 @@ struct CookiesSettingsView: View {
                 Text("cookies.settings.help")
             }
 
-            Section("cookies.selected.title") {
-                Picker("download.options.cookies.picker", selection: $selectedCookieFileName) {
-                    Text("common.none").tag("")
-                    ForEach(importedCookieFiles) { cookieFile in
-                        Text(cookieFile.displayName).tag(cookieFile.fileName)
-                    }
-                }
-                .disabled(isBusy || importedCookieFiles.isEmpty)
-            }
-
-            Section("settings.cookies.title") {
+            Section {
                 if importedCookieFiles.isEmpty {
                     ContentUnavailableView(
                         "cookies.empty.title",
@@ -61,21 +67,37 @@ struct CookiesSettingsView: View {
                     )
                 } else {
                     ForEach(importedCookieFiles) { cookieFile in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(cookieFile.displayName)
-                                .font(.subheadline.weight(.semibold))
-                            Text(cookieFile.fileURL.lastPathComponent)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(
-                                String(
-                                    format: String(localized: "cookies.file.meta"),
-                                    cookieFile.formattedSize,
-                                    cookieFile.modifiedAt.formatted(date: .abbreviated, time: .shortened)
-                                )
-                            )
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Toggle(isOn: cookieEnabledBinding(for: cookieFile)) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(cookieFile.displayName)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(cookieFile.fileURL.lastPathComponent)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(
+                                        String(
+                                            format: String(localized: "cookies.file.meta"),
+                                            cookieFile.formattedSize,
+                                            cookieFile.modifiedAt.formatted(date: .abbreviated, time: .shortened)
+                                        )
+                                    )
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                            .disabled(isBusy)
+
+                            Button {
+                                beginRenaming(cookieFile)
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .frame(width: 32, height: 32)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("common.rename")
+                            .disabled(isBusy)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
@@ -89,8 +111,29 @@ struct CookiesSettingsView: View {
                             }
                             .disabled(isBusy)
                         }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                beginRenaming(cookieFile)
+                            } label: {
+                                Label("common.rename", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+                            .disabled(isBusy)
+                        }
+                        .contextMenu {
+                            Button {
+                                beginRenaming(cookieFile)
+                            } label: {
+                                Label("common.rename", systemImage: "pencil")
+                            }
+                            .disabled(isBusy)
+                        }
                     }
                 }
+            } header: {
+                Text("settings.cookies.title")
+            } footer: {
+                Text("cookies.switch.help")
             }
         }
         .navigationTitle("settings.cookies.title")
@@ -106,12 +149,20 @@ struct CookiesSettingsView: View {
                 errorMessage = error.localizedDescription
             }
         }
+        .sheet(isPresented: $showWebsiteImporter) {
+            CookieWebsiteImportView(onImport: onImportFromWebsite)
+        }
         .sheet(isPresented: $showPasteCookiesSheet) {
             NavigationStack {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("cookies.paste.message")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    TextField("cookies.name.placeholder", text: $pastedCookiesName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
 
                     TextEditor(text: $pastedCookiesText)
                         .font(.system(.body, design: .monospaced))
@@ -139,7 +190,7 @@ struct CookiesSettingsView: View {
                             pastedCookiesText = ""
                             showPasteCookiesSheet = false
                             do {
-                                try onPaste(rawText)
+                                try onPaste(rawText, pastedCookiesName)
                             } catch {
                                 errorMessage = error.localizedDescription
                             }
@@ -148,6 +199,36 @@ struct CookiesSettingsView: View {
                     }
                 }
             }
+        }
+        .sheet(item: $cookieFileToRename) { cookieFile in
+            NavigationStack {
+                Form {
+                    TextField("cookies.name.placeholder", text: $renamedCookieName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .navigationTitle("cookies.rename.title")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("common.cancel") {
+                            cookieFileToRename = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("common.rename") {
+                            do {
+                                try onRename(cookieFile, renamedCookieName)
+                                cookieFileToRename = nil
+                            } catch {
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                        .disabled(renamedCookieName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+            .presentationDetents([.medium])
         }
         .alert(String(localized: "common.result"), isPresented: Binding(
             get: { errorMessage != nil },
@@ -164,5 +245,28 @@ struct CookiesSettingsView: View {
             Text(errorMessage ?? "")
         }
         .onAppear(perform: onRefresh)
+    }
+
+    private func cookieEnabledBinding(for cookieFile: ImportedCookieFile) -> Binding<Bool> {
+        Binding(
+            get: {
+                defaultUseCookies && selectedCookieFileName == cookieFile.fileName
+            },
+            set: { isEnabled in
+                if isEnabled {
+                    selectedCookieFileName = cookieFile.fileName
+                    defaultUseCookies = true
+                    useCookies = true
+                } else if selectedCookieFileName == cookieFile.fileName {
+                    defaultUseCookies = false
+                    useCookies = false
+                }
+            }
+        )
+    }
+
+    private func beginRenaming(_ cookieFile: ImportedCookieFile) {
+        renamedCookieName = cookieFile.displayName
+        cookieFileToRename = cookieFile
     }
 }
