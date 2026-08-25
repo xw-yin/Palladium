@@ -749,28 +749,6 @@ struct SettingsTabView: View {
                 )
             },
             controlSetting(
-                id: "packageUpdateChecks",
-                menu: .packageManager,
-                title: "settings.ui.packages.auto_check",
-                subtitle: "settings.ui.packages.auto_check.help"
-            ) { title in
-                AnyView(searchToggle(title, isOn: $checkPackageUpdatesOnLaunch, disabled: isPackageRunning))
-            },
-            controlSetting(
-                id: "automaticPackageUpdates",
-                menu: .packageManager,
-                title: "settings.ui.packages.auto_update",
-                subtitle: "settings.ui.packages.auto_update.help"
-            ) { title in
-                AnyView(
-                    searchToggle(
-                        title,
-                        isOn: $autoUpdatePackagesOnLaunch,
-                        disabled: isPackageRunning || !checkPackageUpdatesOnLaunch
-                    )
-                )
-            },
-            controlSetting(
                 id: "youtubePatchMode",
                 menu: .advanced,
                 title: "settings.advanced.youtube_patch_mode",

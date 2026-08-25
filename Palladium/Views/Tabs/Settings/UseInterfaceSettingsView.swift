@@ -173,15 +173,6 @@ struct UseInterfaceSettingsView: View {
                 Toggle("settings.notifications.toggle", isOn: $notificationsEnabled)
                     .disabled(isRunning)
             }
-
-            Section {
-                Toggle("settings.ui.packages.auto_check", isOn: $checkPackageUpdatesOnLaunch)
-                    .disabled(isRunning)
-            } header: {
-                Text("settings.maintenance.section")
-            } footer: {
-                Text("settings.ui.packages.auto_check.help")
-            }
         }
         .navigationTitle("settings.ui.title")
         .navigationBarTitleDisplayMode(.inline)

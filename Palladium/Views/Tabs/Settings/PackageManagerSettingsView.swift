@@ -62,21 +62,6 @@ struct PackageManagerSettingsView: View {
             } footer: {
                 Text("packages.payload.help")
             }
-
-            Section {
-                Toggle("settings.ui.packages.auto_check", isOn: $checkPackageUpdatesOnLaunch)
-                    .disabled(isRunning)
-
-                Toggle("settings.ui.packages.auto_update", isOn: $autoUpdatePackagesOnLaunch)
-                    .disabled(isRunning || !checkPackageUpdatesOnLaunch)
-
-
-            } header: {
-                Text("settings.packages.update_checks.section")
-            } footer: {
-                Text("settings.ui.packages.auto_check.help")
-                Text("settings.ui.packages.auto_update.help")
-            }
         }
         .navigationTitle("settings.packages.manager.title")
         .navigationBarTitleDisplayMode(.inline)
