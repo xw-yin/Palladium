@@ -89,10 +89,11 @@ struct ContentView: View {
     static let maxLinkHistoryLimit = 50
 
     @Environment(\.scenePhase) var scenePhase
+    @Environment(\.locale) var appLocale
     @State var isRunning = false
     @State var statusText = "idle"
     @State var urlText: String
-    @State var progressText = String(localized: "download.prompt.idle")
+    @State var progressText = String(localized: "download.prompt.idle", bundle: .app)
     @State var playlistProgress: PlaylistProgressSnapshot?
     @State var downloadErrorText: String?
     @State var selectedPreset: DownloadPreset
@@ -133,7 +134,7 @@ struct ContentView: View {
     @State var versionsText: String
     @State var packageUpdatesAvailable = false
     @State var runtimePackagesMissing = false
-    @State var packageUpdatesSummaryText = String(localized: "packages.summary.idle")
+    @State var packageUpdatesSummaryText = String(localized: "packages.summary.idle", bundle: .app)
     @State var availablePackageVersions: [String: [String]] = [:]
     @State var isLoadingPackageVersions = false
     @State var isPackageRunning = false
@@ -207,6 +208,13 @@ struct ContentView: View {
     @State var queueConsoleInitialized = false
     @State var shareSheetCompletion: (() -> Void)?
     @State var showDownloadQueueSheet = false
+    @State var isResolvingQueueQuality = false
+    @State var queueQualityFormats: [YTDLPFormat] = []
+    @State var queueQualityPickerTitle = ""
+    @State var showQueueQualityPicker = false
+    @State var pendingBatchRepickItemID: UUID?
+    @State var perLinkQualityActive = false
+    @State var pendingPerLinkQualityItemID: UUID?
 
     init() {
         let rememberPreset = Self.loadRememberSelectedPreset()
@@ -314,14 +322,20 @@ struct ContentView: View {
                     onDownloadGallerySelection: { runDownloadFlow(gallerySelectionOverride: selectedGalleryItemIndices) },
                     availableFormats: availableFormats,
                     formatPickerTitle: formatPickerTitle,
+                    formatPickerEmbedsThumbnail: formatPickerEmbedsThumbnail,
                     showFormatPicker: $showFormatPicker,
-                    isResolvingFormats: isResolvingFormats,
+                    isResolvingFormats: isResolvingFormats || isResolvingQueueQuality,
                     onDownloadFormat: { format in
-                        runDownloadFlow(formatOverride: format)
+                        handleDownloadFormatSelection(format)
+                    },
+                    onPreviewLoadFailure: { item, message in
+                        appendConsoleText(
+                            "[palladium] gallery preview failed to load item \(item.index): \(item.url) (\(message))\n"
+                        )
                     }
                 )
                 .tabItem {
-                    Label(String(localized: "tab.download"), systemImage: "arrow.down.circle")
+                    Label(String(localized: "tab.download", bundle: .app), systemImage: "arrow.down.circle")
                 }
                 .tag(AppTab.download)
 
@@ -332,7 +346,7 @@ struct ContentView: View {
                     onOpenOptions: openSavedDownloadActions
                 )
                 .tabItem {
-                    Label(String(localized: "tab.downloads"), systemImage: "tray.and.arrow.down")
+                    Label(String(localized: "tab.downloads", bundle: .app), systemImage: "tray.and.arrow.down")
                 }
                 .tag(AppTab.downloads)
 
@@ -407,14 +421,14 @@ struct ContentView: View {
                     onDeleteCookieFile: deleteImportedCookieFile
                 )
                 .tabItem {
-                    Label(String(localized: "tab.settings"), systemImage: "slider.horizontal.3")
+                    Label(String(localized: "tab.settings", bundle: .app), systemImage: "slider.horizontal.3")
                 }
                 .badge(packageUpdatesAvailable ? Text(verbatim: "!") : nil)
                 .tag(AppTab.settings)
 
                 ConsoleTabView(logStore: consoleLogStore)
                     .tabItem {
-                        Label(String(localized: "tab.console"), systemImage: "terminal")
+                        Label(String(localized: "tab.console", bundle: .app), systemImage: "terminal")
                     }
                     .tag(AppTab.console)
             }
@@ -581,6 +595,12 @@ struct ContentView: View {
                 queue: downloadQueue,
                 selectedPreset: selectedPreset,
                 isOperationBusy: isRunning || isPackageRunning || completedDownloadResult != nil,
+                isResolvingQuality: isResolvingQueueQuality,
+                showQualityPicker: $showQueueQualityPicker,
+                qualityFormats: queueQualityFormats,
+                qualityPickerTitle: queueQualityPickerTitle,
+                onPickQualityStart: handlePickQualityAndStart,
+                onSelectQuality: applyQueueStartQuality,
                 onAddLinks: addLinksToDownloadQueue,
                 onStart: startDownloadQueue,
                 onPause: pauseDownloadQueue,
@@ -603,8 +623,8 @@ struct ContentView: View {
             downloadCompleteActionSheet
                 .interactiveDismissDisabled(true)
         }
-        .alert(String(localized: "common.result"), isPresented: $showAlert) {
-            Button(String(localized: "common.ok"), role: .cancel) {
+        .alert(String(localized: "common.result", bundle: .app), isPresented: $showAlert) {
+            Button(String(localized: "common.ok", bundle: .app), role: .cancel) {
                 if reopenDownloadActionAfterAlert, completedDownloadResult != nil {
                     reopenDownloadActionAfterAlert = false
                     showDownloadActionSheet = true
@@ -633,6 +653,11 @@ struct ContentView: View {
         .onChange(of: isPackageRunning, initial: true) { _, _ in
             syncIdleTimerDisabled()
             consumePendingSharedDownloadIfNeeded()
+        }
+        .onChange(of: appLocale) { _, _ in
+            if statusText == "idle" {
+                progressText = String(localized: "download.prompt.idle", bundle: .app)
+            }
         }
         .onChange(of: scenePhase, initial: true) { _, newPhase in
             guard newPhase == .active else { return }
@@ -668,7 +693,7 @@ private extension ContentView {
                 if let packageNames = automaticPackageUpdatePackageNamesText {
                     Text(
                         String(
-                            format: String(localized: "packages.auto_update.packages"),
+                            format: String(localized: "packages.auto_update.packages", bundle: .app),
                             packageNames
                         )
                     )

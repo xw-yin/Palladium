@@ -41,11 +41,14 @@ struct DownloadTabView: View {
     let onDownloadGallerySelection: () -> Void
     let availableFormats: [YTDLPFormat]
     let formatPickerTitle: String
+    let formatPickerEmbedsThumbnail: Bool
     @Binding var showFormatPicker: Bool
     let isResolvingFormats: Bool
     let onDownloadFormat: (YTDLPFormat) -> Void
+    let onPreviewLoadFailure: (GalleryItem, String) -> Void
     @State private var showHistorySheet = false
     @State private var showDownloadOptions = false
+    @State private var loggedPreviewFailureIndices: Set<Int> = []
 
     var body: some View {
         ZStack {
@@ -206,16 +209,16 @@ struct DownloadTabView: View {
                             VStack(spacing: 8) {
                                 if selectedPreset != .images {
                                     downloadOptionToggle(
-                                        title: String(localized: "download.options.playlist.title"),
-                                        subtitle: String(localized: "download.options.playlist.help"),
+                                        title: String(localized: "download.options.playlist.title", bundle: .app),
+                                        subtitle: String(localized: "download.options.playlist.help", bundle: .app),
                                         isOn: $downloadPlaylist
                                     )
 
                                     subtitleDownloadOptionRow
 
                                     downloadOptionToggle(
-                                        title: String(localized: "download.options.thumbnail.title"),
-                                        subtitle: String(localized: "download.options.thumbnail.help"),
+                                        title: String(localized: "download.options.thumbnail.title", bundle: .app),
+                                        subtitle: String(localized: "download.options.thumbnail.help", bundle: .app),
                                         isOn: $embedThumbnail
                                     )
                                 }
@@ -309,7 +312,17 @@ struct DownloadTabView: View {
             galleryPickerSheet
         }
         .sheet(isPresented: $showFormatPicker) {
-            formatPickerSheet
+            FormatPickerSheetView(
+                title: formatPickerTitle.isEmpty
+                    ? String(localized: "download.formats.title", bundle: .app)
+                    : formatPickerTitle,
+                formats: availableFormats,
+                embedThumbnail: formatPickerEmbedsThumbnail,
+                onSelect: { format in
+                    showFormatPicker = false
+                    onDownloadFormat(format)
+                }
+            )
         }
         .onChange(of: isRunning) { _, running in
             guard running, showDownloadOptions else { return }
@@ -354,162 +367,6 @@ struct DownloadTabView: View {
         }
     }
 
-    private var formatPickerSheet: some View {
-        NavigationStack {
-            List {
-                HStack(spacing: 6) {
-                    Image(systemName: "photo.on.rectangle")
-                        .foregroundStyle(.green)
-                    Text("download.formats.photos_compatible")
-                        .foregroundStyle(.secondary)
-                }
-                .font(.caption)
-
-                if !videoFormats.isEmpty {
-                    Section("download.formats.video_section") {
-                        ForEach(videoFormats) { format in
-                            formatPickerRow(format)
-                        }
-                    }
-                }
-
-                if !audioFormats.isEmpty {
-                    Section("download.formats.audio_section") {
-                        ForEach(audioFormats) { format in
-                            formatPickerRow(format)
-                        }
-                    }
-                }
-            }
-            .navigationTitle(formatPickerTitle.isEmpty
-                ? String(localized: "download.formats.title")
-                : formatPickerTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("common.cancel") { showFormatPicker = false }
-                }
-            }
-        }
-    }
-
-    private var videoFormats: [YTDLPFormat] {
-        availableFormats.filter(\.hasVideo).sorted { lhs, rhs in
-            let leftQuality = (displayHeight(lhs), lhs.framesPerSecond ?? 0, lhs.videoBitrate ?? 0)
-            let rightQuality = (displayHeight(rhs), rhs.framesPerSecond ?? 0, rhs.videoBitrate ?? 0)
-            if leftQuality.0 != rightQuality.0 { return leftQuality.0 > rightQuality.0 }
-            if leftQuality.1 != rightQuality.1 { return leftQuality.1 > rightQuality.1 }
-            return leftQuality.2 > rightQuality.2
-        }
-    }
-
-    private var audioFormats: [YTDLPFormat] {
-        availableFormats
-            .filter { $0.hasAudio && !$0.hasVideo }
-            .sorted { ($0.audioBitrate ?? 0) > ($1.audioBitrate ?? 0) }
-    }
-
-    private func formatPickerRow(_ format: YTDLPFormat) -> some View {
-        Button {
-            showFormatPicker = false
-            onDownloadFormat(format)
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(formatHeading(format))
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    if format.isPhotosCompatible {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.green)
-                            .accessibilityLabel("download.formats.photos_compatible")
-                    }
-                    Spacer()
-                    Text(format.id)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                Text(formatDetails(format))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(codecDetails(format))
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func formatHeading(_ format: YTDLPFormat) -> String {
-        guard format.hasVideo else {
-            if let bitrate = format.audioBitrate, bitrate > 0 {
-                return "\(Int(bitrate.rounded())) kbps"
-            }
-            return format.fileExtension.uppercased()
-        }
-
-        let quality: String
-        switch displayHeight(format) {
-        case 2160...:
-            quality = "4K"
-        case 1440...:
-            quality = "1440p"
-        case 1080...:
-            quality = "1080p"
-        case 720...:
-            quality = "720p"
-        case 480...:
-            quality = "480p"
-        case 360...:
-            quality = "360p"
-        case 240...:
-            quality = "240p"
-        case 144...:
-            quality = "144p"
-        default:
-            quality = format.note.isEmpty ? format.fileExtension.uppercased() : format.note
-        }
-
-        if let fps = format.framesPerSecond, fps > 30 {
-            return "\(quality) · \(Int(fps.rounded())) fps"
-        }
-        return quality
-    }
-
-    private func displayHeight(_ format: YTDLPFormat) -> Int {
-        guard let width = format.width, let height = format.height else {
-            return format.height ?? 0
-        }
-        return min(width, height)
-    }
-
-    private func formatDetails(_ format: YTDLPFormat) -> String {
-        var details = [format.fileExtension.uppercased()].filter { !$0.isEmpty }
-        if let fileSize = format.fileSize {
-            details.append(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
-        }
-        if !format.note.isEmpty, format.note != format.resolution {
-            details.append(format.note)
-        }
-        return details.joined(separator: " · ")
-    }
-
-    private func codecDetails(_ format: YTDLPFormat) -> String {
-        var codecs: [String] = []
-        if format.hasVideo {
-            codecs.append("Video: \(format.videoCodecDisplayName)")
-            codecs.append(format.hasAudio
-                ? "Audio: \(format.audioCodec)"
-                : String(localized: "download.formats.best_audio"))
-        } else if format.hasAudio {
-            codecs.append("Audio: \(format.audioCodec)")
-        }
-        return codecs.joined(separator: " · ")
-    }
-
     private var galleryPickerSheet: some View {
         NavigationStack {
             ScrollView {
@@ -532,14 +389,23 @@ struct DownloadTabView: View {
                                 ZStack {
                                     Color.secondary.opacity(0.15)
                                     if item.mediaType == .image {
-                                        AsyncImage(url: URL(string: item.url)) { image in
-                                            image
-                                                .resizable()
-                                                .scaledToFit()
-                                                .padding(4)
-                                        } placeholder: {
-                                            ProgressView()
+                                        AsyncImage(url: URL(string: item.url)) { phase in
+                                            switch phase {
+                                            case .success(let image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .padding(4)
+                                            case .failure(let error):
+                                                galleryPreviewFailureView(item: item, error: error)
+                                            case .empty:
+                                                ProgressView()
+                                            @unknown default:
+                                                ProgressView()
+                                            }
                                         }
+                                    } else if item.mediaType == .video {
+                                        GalleryVideoPreview(item: item)
                                     } else {
                                         VStack(spacing: 8) {
                                             Image(systemName: item.placeholderIconName)
@@ -613,12 +479,29 @@ struct DownloadTabView: View {
         }
     }
 
+    private func galleryPreviewFailureView(item: GalleryItem, error: Error) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 34, weight: .semibold))
+            Text("Preview unavailable")
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .foregroundStyle(.secondary)
+        .onAppear {
+            guard loggedPreviewFailureIndices.insert(item.index).inserted else { return }
+            onPreviewLoadFailure(item, error.localizedDescription)
+        }
+    }
+
     private var galleryPickerTitle: String {
         switch galleryVisibleMediaType {
         case .some(.image):
             return "Select Images"
         case .some(.audio):
             return "Select Audio"
+        case .some(.video):
+            return "Select Videos"
         case .some(.file):
             return "Select Files"
         case nil:
@@ -633,6 +516,8 @@ struct DownloadTabView: View {
             return "Download \(count) Image\(count == 1 ? "" : "s")"
         case .some(.audio):
             return "Download \(count) Audio"
+        case .some(.video):
+            return "Download \(count) Video\(count == 1 ? "" : "s")"
         case .some(.file):
             return "Download \(count) File\(count == 1 ? "" : "s")"
         case nil:
@@ -810,16 +695,16 @@ struct DownloadTabView: View {
         if subtitleLanguagePattern == SubtitleLanguageOption.custom.subtitlePattern {
             let trimmed = customSubtitleLanguagePattern.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty
-                ? String(localized: "common.custom")
-                : String(format: String(localized: "download.custom.value"), trimmed)
+                ? String(localized: "common.custom", bundle: .app)
+                : String(format: String(localized: "download.custom.value", bundle: .app), trimmed)
         }
         if let option = selectedSubtitleOption {
             return option.title
         }
         let trimmed = subtitleLanguagePattern.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty
-            ? String(localized: "common.custom")
-            : String(format: String(localized: "download.custom.value"), trimmed)
+            ? String(localized: "common.custom", bundle: .app)
+            : String(format: String(localized: "download.custom.value", bundle: .app), trimmed)
     }
 
     private var normalizedCustomSubtitlePattern: Binding<String> {
@@ -838,21 +723,21 @@ struct DownloadTabView: View {
     private var downloadOptionsSummary: String {
         var parts: [String] = []
         if downloadPlaylist {
-            parts.append(String(localized: "download.options.playlist.short"))
+            parts.append(String(localized: "download.options.playlist.short", bundle: .app))
         }
         if downloadSubtitles {
-            parts.append(String(format: String(localized: "download.options.subtitles.value"), subtitleSummaryText))
+            parts.append(String(format: String(localized: "download.options.subtitles.value", bundle: .app), subtitleSummaryText))
         }
         if embedThumbnail {
-            parts.append(String(localized: "download.options.thumbnail.title"))
+            parts.append(String(localized: "download.options.thumbnail.title", bundle: .app))
         }
         let selectedCookieName = selectedCookieFileName.trimmingCharacters(in: .whitespacesAndNewlines)
         if useCookies, !selectedCookieName.isEmpty {
-            parts.append(String(format: String(localized: "download.options.cookies.value"), selectedCookieName))
+            parts.append(String(format: String(localized: "download.options.cookies.value", bundle: .app), selectedCookieName))
         } else if useCookies {
-            parts.append(String(localized: "download.options.cookies.title"))
+            parts.append(String(localized: "download.options.cookies.title", bundle: .app))
         }
-        return parts.isEmpty ? String(localized: "download.options.summary.default") : parts.joined(separator: " • ")
+        return parts.isEmpty ? String(localized: "download.options.summary.default", bundle: .app) : parts.joined(separator: " • ")
     }
 
     private func queueProgressCard(_ item: DownloadQueueItem) -> some View {
@@ -903,7 +788,7 @@ struct DownloadTabView: View {
     private func queueProgressTitle(for item: DownloadQueueItem) -> String {
         let currentIndex = downloadQueue.items.firstIndex(where: { $0.id == item.id }) ?? 0
         return String(
-            format: String(localized: "queue.progress.value"),
+            format: String(localized: "queue.progress.value", bundle: .app),
             currentIndex + 1,
             downloadQueue.items.count
         )
@@ -936,15 +821,15 @@ struct DownloadTabView: View {
 
             HStack(spacing: 8) {
                 playlistMetric(
-                    label: String(localized: "download.playlist.total"),
+                    label: String(localized: "download.playlist.total", bundle: .app),
                     value: snapshot.expectedCount.map(String.init) ?? "?"
                 )
                 playlistMetric(
-                    label: String(localized: "download.playlist.completed"),
+                    label: String(localized: "download.playlist.completed", bundle: .app),
                     value: "\(snapshot.completedCount)"
                 )
                 playlistMetric(
-                    label: String(localized: "download.playlist.failed"),
+                    label: String(localized: "download.playlist.failed", bundle: .app),
                     value: "\(snapshot.failedCount)"
                 )
             }
@@ -992,15 +877,15 @@ struct DownloadTabView: View {
     private func playlistStatusText(for snapshot: PlaylistProgressSnapshot) -> String {
         switch snapshot.resultKind {
         case "partial":
-            return String(localized: "download.status.partial")
+            return String(localized: "download.status.partial", bundle: .app)
         case "success":
-            return String(localized: "download.status.complete")
+            return String(localized: "download.status.complete", bundle: .app)
         case "error":
-            return String(localized: "download.status.failed")
+            return String(localized: "download.status.failed", bundle: .app)
         case "cancelled":
-            return String(localized: "download.status.cancelled")
+            return String(localized: "download.status.cancelled", bundle: .app)
         default:
-            return String(localized: "download.status.running")
+            return String(localized: "download.status.running", bundle: .app)
         }
     }
 
@@ -1039,32 +924,32 @@ struct DownloadTabView: View {
         switch snapshot.resultKind {
         case "partial":
             return String(
-                format: String(localized: "download.playlist.summary.partial"),
+                format: String(localized: "download.playlist.summary.partial", bundle: .app),
                 snapshot.completedCount,
                 expectedCount,
                 snapshot.failedCount
             )
         case "success":
             return String(
-                format: String(localized: "download.playlist.summary.success"),
+                format: String(localized: "download.playlist.summary.success", bundle: .app),
                 snapshot.completedCount,
                 expectedCount
             )
         case "error":
             return String(
-                format: String(localized: "download.playlist.summary.failed"),
+                format: String(localized: "download.playlist.summary.failed", bundle: .app),
                 snapshot.failedCount,
                 expectedCount
             )
         case "cancelled":
             return String(
-                format: String(localized: "download.playlist.summary.cancelled"),
+                format: String(localized: "download.playlist.summary.cancelled", bundle: .app),
                 snapshot.completedCount,
                 expectedCount
             )
         default:
             return String(
-                format: String(localized: "download.playlist.summary.running"),
+                format: String(localized: "download.playlist.summary.running", bundle: .app),
                 snapshot.completedCount,
                 expectedCount,
                 snapshot.failedCount
@@ -1077,13 +962,13 @@ struct DownloadTabView: View {
         guard let currentItemIndex = snapshot.currentItemIndex else { return nil }
         if let currentItemTitle = snapshot.currentItemTitle, !currentItemTitle.isEmpty {
             return String(
-                format: String(localized: "download.playlist.current.value"),
+                format: String(localized: "download.playlist.current.value", bundle: .app),
                 currentItemIndex,
                 currentItemTitle
             )
         }
         return String(
-            format: String(localized: "download.playlist.current.index"),
+            format: String(localized: "download.playlist.current.index", bundle: .app),
             currentItemIndex
         )
     }

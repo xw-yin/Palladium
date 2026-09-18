@@ -6,6 +6,7 @@ struct GalleryItem: Identifiable, Hashable, Sendable {
     enum MediaType: String, Sendable {
         case image
         case audio
+        case video
         case file
     }
 
@@ -13,6 +14,7 @@ struct GalleryItem: Identifiable, Hashable, Sendable {
     let url: String
     let title: String
     let mediaType: MediaType
+    var thumbnailURL: String? = nil
 
     var id: Int { index }
 
@@ -22,6 +24,8 @@ struct GalleryItem: Identifiable, Hashable, Sendable {
             return "Image"
         case .audio:
             return "Audio"
+        case .video:
+            return "Video"
         case .file:
             return "File"
         }
@@ -33,6 +37,8 @@ struct GalleryItem: Identifiable, Hashable, Sendable {
             return "photo"
         case .audio:
             return "music.note"
+        case .video:
+            return "video.fill"
         case .file:
             return "doc"
         }
@@ -44,6 +50,14 @@ struct GalleryResolution: Sendable {
     let outputText: String
     let success: Bool
     let errorMessage: String?
+}
+
+struct YTDLPSelectedAudio: Hashable, Sendable {
+    let id: String
+    let fileExtension: String
+    let codec: String
+    let fileSize: Int64?
+    let fileSizeIsApproximate: Bool
 }
 
 struct YTDLPFormat: Identifiable, Hashable, Sendable {
@@ -59,6 +73,22 @@ struct YTDLPFormat: Identifiable, Hashable, Sendable {
     let audioCodec: String
     let fileSize: Int64?
     let note: String
+    var resolvedDownloadID: String? = nil
+    var resolvedOutputExtension: String? = nil
+    var resolvedAudioCodec: String? = nil
+    var fileSizeIsApproximate: Bool = false
+    var selectedAudio: YTDLPSelectedAudio? = nil
+    var hasThumbnail: Bool = false
+
+    func finalVideoExtension(embedThumbnail: Bool) -> String {
+        let container = resolvedOutputExtension ?? fileExtension
+        // yt-dlp switches merged WEBM to MKV when embedding an available thumbnail.
+        if hasVideo, embedThumbnail, hasThumbnail, container.lowercased() == "webm",
+           let resolvedDownloadID, resolvedDownloadID != id {
+            return "mkv"
+        }
+        return container
+    }
 
     var hasVideo: Bool { !videoCodec.isEmpty && videoCodec != "none" }
     var hasAudio: Bool { !audioCodec.isEmpty && audioCodec != "none" }
@@ -78,7 +108,8 @@ struct YTDLPFormat: Identifiable, Hashable, Sendable {
     }
 
     var isPhotosCompatible: Bool {
-        guard hasVideo, ["mp4", "mov", "m4v"].contains(fileExtension.lowercased()) else {
+        let outputExtension = resolvedOutputExtension ?? fileExtension
+        guard hasVideo, ["mp4", "mov", "m4v"].contains(outputExtension.lowercased()) else {
             return false
         }
         let codec = videoCodec.lowercased()
@@ -90,25 +121,63 @@ struct YTDLPFormat: Identifiable, Hashable, Sendable {
             || codec.hasPrefix("hevc")
             || codec.hasPrefix("h265")
         guard hasCompatibleVideoCodec else { return false }
-        guard hasAudio else { return true }
-        let audio = audioCodec.lowercased()
+        let audio = (resolvedAudioCodec ?? audioCodec).lowercased()
+        guard !audio.isEmpty, audio != "none" else { return true }
         return audio.hasPrefix("mp4a") || audio.hasPrefix("aac")
     }
 
-    var downloadSelector: String {
-        guard hasVideo && !hasAudio else { return id }
-        if isPhotosCompatible {
-            return "\(id)+bestaudio[ext=m4a]/\(id)+bestaudio/best"
-        }
-        return "\(id)+bestaudio/best"
-    }
-
     func downloadOverrideArguments(usesQualitySettings: Bool) -> String {
-        var arguments = "--format \(downloadSelector)"
+        // Source metadata stays separate from the exact video+audio selection.
+        var arguments = "--format \(resolvedDownloadID ?? id)"
         if hasAudio && !hasVideo && !usesQualitySettings {
             arguments += " --extract-audio --audio-format best"
         }
         return arguments
+    }
+}
+
+extension YTDLPFormat {
+    var displayHeight: Int {
+        guard let width, let height else {
+            return height ?? 0
+        }
+        return min(width, height)
+    }
+
+    var qualityHeading: String {
+        guard hasVideo else {
+            if let bitrate = audioBitrate, bitrate > 0 {
+                return "\(Int(bitrate.rounded())) kbps"
+            }
+            return fileExtension.uppercased()
+        }
+
+        let quality: String
+        switch displayHeight {
+        case 2160...:
+            quality = "4K"
+        case 1440...:
+            quality = "1440p"
+        case 1080...:
+            quality = "1080p"
+        case 720...:
+            quality = "720p"
+        case 480...:
+            quality = "480p"
+        case 360...:
+            quality = "360p"
+        case 240...:
+            quality = "240p"
+        case 144...:
+            quality = "144p"
+        default:
+            quality = note.isEmpty ? fileExtension.uppercased() : note
+        }
+
+        if let fps = framesPerSecond, fps > 30 {
+            return "\(quality) · \(Int(fps.rounded())) fps"
+        }
+        return quality
     }
 }
 
@@ -128,6 +197,7 @@ enum PythonFlowRunner {
         preset: String,
         presetArgsJSON: String,
         extraArgs: String,
+        postProcessingJSON: String,
         downloadPlaylist: Bool,
         downloadSubtitles: Bool,
         embedThumbnail: Bool,
@@ -158,7 +228,8 @@ enum PythonFlowRunner {
                         cookieFilePath ?? "",
                         runOutputDir,
                         liveLogArgument,
-                        packageSourceJSON
+                        packageSourceJSON,
+                        postProcessingJSON
                     ]
                 )
                 payload = String(result) ?? ""
@@ -284,6 +355,13 @@ enum PythonFlowRunner {
     }
 
     private static func loadYtDlpModule() throws -> PythonObject {
+        let os = try Python.attemptImport("os")
+        let environment = try pythonMember(os, named: "environ")
+        let setEnvironment = try pythonMember(environment, named: "__setitem__")
+        _ = try setEnvironment.throwing.dynamicallyCall(withArguments: [
+            "PALLADIUM_JS_RUNTIME", JavaScriptRuntime.selected.rawValue
+        ])
+
         let scriptURL = PythonScripts.ytDlpScriptURL
         let scriptPath = scriptURL.path
         let scriptDirectoryPath = scriptURL.deletingLastPathComponent().path
@@ -438,7 +516,13 @@ enum PythonFlowRunner {
                   let title = item["title"] as? String else { return nil }
             let mediaTypeValue = item["media_type"] as? String ?? "image"
             let mediaType = GalleryItem.MediaType(rawValue: mediaTypeValue) ?? .file
-            return GalleryItem(index: index, url: url, title: title, mediaType: mediaType)
+            return GalleryItem(
+                index: index,
+                url: url,
+                title: title,
+                mediaType: mediaType,
+                thumbnailURL: item["thumbnail_url"] as? String
+            )
         }
         return GalleryResolution(
             items: items,
@@ -462,6 +546,15 @@ enum PythonFlowRunner {
         let formats = ((result["formats"] as? [[String: Any]]) ?? []).compactMap { item -> YTDLPFormat? in
             guard let id = item["id"] as? String, !id.isEmpty else { return nil }
             let sizeNumber = item["filesize"] as? NSNumber
+            let selectedAudio = (item["selected_audio"] as? [String: Any]).map { audio in
+                YTDLPSelectedAudio(
+                    id: audio["id"] as? String ?? "",
+                    fileExtension: audio["extension"] as? String ?? "",
+                    codec: audio["codec"] as? String ?? "",
+                    fileSize: (audio["filesize"] as? NSNumber)?.int64Value,
+                    fileSizeIsApproximate: audio["filesize_is_approximate"] as? Bool ?? false
+                )
+            }
             return YTDLPFormat(
                 id: id,
                 fileExtension: item["extension"] as? String ?? "",
@@ -474,7 +567,13 @@ enum PythonFlowRunner {
                 videoCodec: item["video_codec"] as? String ?? "",
                 audioCodec: item["audio_codec"] as? String ?? "",
                 fileSize: sizeNumber?.int64Value,
-                note: item["note"] as? String ?? ""
+                note: item["note"] as? String ?? "",
+                resolvedDownloadID: item["download_id"] as? String,
+                resolvedOutputExtension: item["output_extension"] as? String,
+                resolvedAudioCodec: item["selected_audio_codec"] as? String,
+                fileSizeIsApproximate: item["filesize_is_approximate"] as? Bool ?? false,
+                selectedAudio: selectedAudio,
+                hasThumbnail: item["has_thumbnail"] as? Bool ?? false
             )
         }
         return YTDLPFormatResolution(
@@ -738,6 +837,7 @@ private final class PythonExecutor: NSObject {
     private let stateLock = NSLock()
     private var pythonThread: Thread!
     private var activePythonThreadID: UInt = 0
+    private var activeWorkGeneration: UInt64 = 0
 
     private override init() {
         super.init()
@@ -776,23 +876,33 @@ private final class PythonExecutor: NSObject {
     }
 
     func interruptActiveWork() {
-        let threadID: UInt = stateLock.withLock {
-            activePythonThreadID
+        let (threadID, generation) = stateLock.withLock {
+            (activePythonThreadID, activeWorkGeneration)
         }
         guard threadID != 0 else { return }
 
-        let gilState = PythonCAPI.gilEnsure()
-        defer { PythonCAPI.gilRelease(gilState) }
+        // A native extension may hold the GIL while it shuts down. Never wait
+        // for that lock on the UI thread handling the Cancel button.
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let gilState = PythonCAPI.gilEnsure()
+            defer { PythonCAPI.gilRelease(gilState) }
 
-        let result = PythonCAPI.setAsyncException(threadID, PythonCAPI.keyboardInterruptException)
-        if result > 1 {
-            _ = PythonCAPI.setAsyncException(threadID, nil)
+            stateLock.withLock {
+                // The cancelled task may have finished while we waited. Do not
+                // inject its interrupt into the next task on the same thread.
+                guard activePythonThreadID == threadID, activeWorkGeneration == generation else { return }
+                let result = PythonCAPI.setAsyncException(threadID, PythonCAPI.keyboardInterruptException)
+                if result > 1 {
+                    _ = PythonCAPI.setAsyncException(threadID, nil)
+                }
+            }
         }
     }
 
     private func setActivePythonThreadID(_ threadID: UInt) {
         stateLock.withLock {
             activePythonThreadID = threadID
+            activeWorkGeneration &+= 1
         }
     }
 }

@@ -8,6 +8,7 @@ import traceback
 import urllib.parse
 
 from .args import (
+    apply_post_processing_args,
     build_preset_args,
     has_custom_output_template,
     parse_custom_args,
@@ -32,6 +33,7 @@ from .packages import (
     runtime_package_names,
 )
 from .patching import apply_youtube_patches
+from .quickjs_bridge import embedded_quickjs, runtime_default_args, runtime_default_options
 from .runtime import raise_if_cancel_requested
 from .shared import TailBuffer, Tee, open_live_log_stream
 
@@ -147,16 +149,49 @@ def filter_embedded_playlist_entries(enabled):
         yt_dlp.YoutubeDL.process_ie_result = original
 
 
+def resolve_picker_formats(downloader, info):
+    """Resolve each video with audio using yt-dlp's already sorted format list."""
+    source_formats = info.get("formats") or []
+    resolved_formats = []
+    for item in source_formats:
+        format_id = str(item.get("format_id") or "").strip()
+        video_codec = str(item.get("vcodec") or "none").lower()
+        audio_codec = str(item.get("acodec") or "none").lower()
+        if not format_id or (video_codec == "none" and audio_codec == "none"):
+            continue
+
+        if video_codec != "none" and audio_codec == "none":
+            # Keep the existing preference for M4A audio with Photos-compatible
+            # video. yt-dlp decides the audio ID and container, including fallback.
+            prefers_m4a = (
+                str(item.get("ext") or "").lower() in {"mp4", "mov", "m4v"}
+                and video_codec.startswith(("avc1", "avc3", "h264", "hvc1", "hev1", "hevc", "h265"))
+            )
+            selector = f"{format_id}+bestaudio/{format_id}"
+            if prefers_m4a:
+                selector = f"{format_id}+bestaudio[ext=m4a]/{selector}"
+            selected = downloader._select_formats(source_formats, downloader.build_format_selector(selector))
+            if not selected:
+                continue
+            resolved_formats.append(selected[0])
+        else:
+            resolved_formats.append(item)
+    return resolved_formats
+
+
 def list_yt_dlp_formats(download_url, cookie_file_path=""):
-    """Return the formats exposed by yt-dlp without downloading any media."""
+    """Return source rows as in -F, with resolved download selections alongside."""
     output = TailBuffer()
     try:
         import yt_dlp
 
         options = {
+            **runtime_default_options(),
             "quiet": True,
             "no_warnings": True,
             "skip_download": True,
+            "listformats": True,
+            "check_formats": False,
             "noplaylist": True,
             "nocheckcertificate": True,
         }
@@ -165,27 +200,50 @@ def list_yt_dlp_formats(download_url, cookie_file_path=""):
             options["cookiefile"] = cookie_path
 
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-            with yt_dlp.YoutubeDL(options) as downloader:
+            with embedded_quickjs(), yt_dlp.YoutubeDL(options) as downloader:
                 info = downloader.extract_info(str(download_url).strip(), download=False)
+                resolved_formats = resolve_picker_formats(downloader, info)
 
         formats = []
-        for item in info.get("formats") or []:
-            format_id = str(item.get("format_id") or "").strip()
+        for item in resolved_formats:
+            # A merge's size can include only the known audio size, and its note
+            # combines video and audio labels. Display the original -F row instead.
+            source = next((
+                stream for stream in item.get("requested_formats") or []
+                if stream.get("vcodec") not in (None, "", "none")
+            ), item)
+            format_id = str(source.get("format_id") or "").strip()
             if not format_id:
                 continue
+            audio = next((
+                stream for stream in item.get("requested_formats") or [item]
+                if stream.get("acodec") not in (None, "", "none")
+            ), None)
             formats.append({
                 "id": format_id,
-                "extension": str(item.get("ext") or "").strip(),
-                "resolution": str(item.get("resolution") or "").strip(),
-                "width": item.get("width"),
-                "height": item.get("height"),
-                "fps": item.get("fps"),
-                "video_bitrate": item.get("vbr"),
-                "audio_bitrate": item.get("abr"),
-                "video_codec": str(item.get("vcodec") or "").strip(),
-                "audio_codec": str(item.get("acodec") or "").strip(),
-                "filesize": item.get("filesize") or item.get("filesize_approx"),
-                "note": str(item.get("format_note") or "").strip(),
+                "extension": str(source.get("ext") or "").strip(),
+                "resolution": str(source.get("resolution") or "").strip(),
+                "width": source.get("width"),
+                "height": source.get("height"),
+                "fps": source.get("fps"),
+                "video_bitrate": source.get("vbr"),
+                "audio_bitrate": source.get("abr"),
+                "video_codec": str(source.get("vcodec") or "").strip(),
+                "audio_codec": str(source.get("acodec") or "").strip(),
+                "filesize": source.get("filesize") or source.get("filesize_approx"),
+                "filesize_is_approximate": not source.get("filesize") and bool(source.get("filesize_approx")),
+                "note": str(source.get("format_note") or "").strip(),
+                "download_id": str(item.get("format_id") or "").strip(),
+                "output_extension": str(item.get("ext") or "").strip(),
+                "selected_audio_codec": str(item.get("acodec") or "").strip(),
+                "selected_audio": {
+                    "id": str(audio.get("format_id") or ""),
+                    "extension": str(audio.get("ext") or ""),
+                    "codec": str(audio.get("acodec") or ""),
+                    "filesize": audio.get("filesize") or audio.get("filesize_approx"),
+                    "filesize_is_approximate": not audio.get("filesize") and bool(audio.get("filesize_approx")),
+                } if audio else None,
+                "has_thumbnail": bool(info.get("thumbnails")),
             })
 
         return json.dumps({
@@ -519,6 +577,7 @@ def run_retry_without_thumbnails(
         "--no-check-certificate",
         "--remote-components",
         "ejs:github",
+        *runtime_default_args(),
         "--cache-dir",
         cache_dir if cache_dir else os.path.join(".", ".cache"),
         "--force-overwrites",
@@ -537,7 +596,7 @@ def run_retry_without_thumbnails(
 
     sys.argv = retry_args
     try:
-        with patch_ytdlp_for_swiftffmpeg(bridge_adapter):
+        with embedded_quickjs(), patch_ytdlp_for_swiftffmpeg(bridge_adapter):
             runpy.run_module("yt_dlp", run_name="__main__", alter_sys=True)
         return True, None
     except SystemExit as exc:
@@ -562,6 +621,7 @@ def run_yt_dlp_flow(
     run_output_dir_override=None,
     live_log_fd_override=None,
     package_source_json_override=None,
+    post_processing_json_override=None,
 ):
     output = TailBuffer()
     console_stdout = sys.__stdout__ if sys.__stdout__ is not None else None
@@ -755,6 +815,9 @@ def run_yt_dlp_flow(
                             preset_args = build_preset_args(download_preset)
                         preset_args = strip_checkbox_owned_download_args(preset_args)
                         extra_args = strip_checkbox_owned_download_args(parse_extra_args(extra_args_text))
+                        preset_args, extra_args = apply_post_processing_args(
+                            preset_args, extra_args, post_processing_json_override
+                        )
                         raise_if_cancel_requested(cancel_file_path, "[palladium] cancellation requested before yt-dlp invocation")
                         output_args = []
                         download_behavior_args = []
@@ -793,6 +856,7 @@ def run_yt_dlp_flow(
                             "--no-check-certificate",
                             "--remote-components",
                             "ejs:github",
+                            *runtime_default_args(),
                             "--cache-dir",
                             cache_dir if cache_dir else os.path.join(downloads_dir if downloads_dir else ".", ".cache"),
                             "--force-overwrites",
@@ -807,7 +871,11 @@ def run_yt_dlp_flow(
                         ]
 
                         try:
-                            with patch_ytdlp_for_swiftffmpeg(bridge_adapter), filter_embedded_playlist_entries(filter_embedded_entries):
+                            with (
+                                embedded_quickjs(cancel_file_path),
+                                patch_ytdlp_for_swiftffmpeg(bridge_adapter),
+                                filter_embedded_playlist_entries(filter_embedded_entries),
+                            ):
                                 runpy.run_module("yt_dlp", run_name="__main__", alter_sys=True)
                             yt_exit_code = 0
                         except KeyboardInterrupt:

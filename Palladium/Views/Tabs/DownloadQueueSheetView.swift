@@ -4,6 +4,12 @@ struct DownloadQueueSheetView: View {
     let queue: DownloadQueue
     let selectedPreset: DownloadPreset
     let isOperationBusy: Bool
+    let isResolvingQuality: Bool
+    @Binding var showQualityPicker: Bool
+    let qualityFormats: [YTDLPFormat]
+    let qualityPickerTitle: String
+    let onPickQualityStart: () -> Void
+    let onSelectQuality: (YTDLPFormat) -> Void
     let onAddLinks: (String) -> Int
     let onStart: () -> Void
     let onPause: () -> Void
@@ -13,6 +19,8 @@ struct DownloadQueueSheetView: View {
     let onClearFinished: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(QueuedQualityPreferences.selectionEnabledKey)
+    private var queuedQualitySelectionEnabled = true
     @State private var linksText = ""
 
     var body: some View {
@@ -50,6 +58,17 @@ struct DownloadQueueSheetView: View {
                 }
             }
         }
+        .sheet(isPresented: $showQualityPicker) {
+            FormatPickerSheetView(
+                title: qualityPickerTitle,
+                formats: qualityFormats,
+                embedThumbnail: queue.pendingItems.contains { $0.configuration.embedThumbnail },
+                onSelect: { format in
+                    showQualityPicker = false
+                    onSelectQuality(format)
+                }
+            )
+        }
         .presentationDetents([.large])
     }
 
@@ -79,7 +98,7 @@ struct DownloadQueueSheetView: View {
                 Label {
                     Text(
                         String(
-                            format: String(localized: "queue.snapshot.value"),
+                            format: String(localized: "queue.snapshot.value", bundle: .app),
                             selectedPreset.title
                         )
                     )
@@ -122,25 +141,45 @@ struct DownloadQueueSheetView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                Button(action: onStart) {
-                    Label(
-                        hasPreviouslyStartedItems ? "queue.resume" : "queue.start",
-                        systemImage: "play.circle.fill"
-                    )
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
+                startQueueButton
+
+                if queuedQualitySelectionEnabled {
+                    pickQualityStartButton
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-                .disabled(isOperationBusy || !queue.hasPendingItems)
             }
         } footer: {
-            if isOperationBusy, !queue.isActive {
+            if isResolvingQuality {
+                Text("queue.quality.loading")
+            } else if isOperationBusy, !queue.isActive {
                 Text("queue.busy")
             } else if queue.isActive {
                 Text("queue.pause.help")
             }
         }
+    }
+
+    private var startQueueButton: some View {
+        Button(action: onStart) {
+            Label(
+                hasPreviouslyStartedItems ? "queue.resume" : "queue.start.download",
+                systemImage: "play.circle.fill"
+            )
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.blue)
+        .disabled(isOperationBusy || !queue.hasPendingItems || isResolvingQuality)
+    }
+
+    private var pickQualityStartButton: some View {
+        Button(action: onPickQualityStart) {
+            Label("queue.pick_quality.start", systemImage: "slider.horizontal.3")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(.blue)
+        .disabled(isOperationBusy || !queue.hasPendingItems || isResolvingQuality)
     }
 
     @ViewBuilder
@@ -276,19 +315,19 @@ struct DownloadQueueSheetView: View {
     private func statusText(for status: DownloadQueueItemStatus) -> String {
         switch status {
         case .pending:
-            String(localized: "queue.status.pending")
+            String(localized: "queue.status.pending", bundle: .app)
         case .running:
-            String(localized: "queue.status.running")
+            String(localized: "queue.status.running", bundle: .app)
         case .awaitingAction:
-            String(localized: "queue.status.awaiting_action")
+            String(localized: "queue.status.awaiting_action", bundle: .app)
         case .succeeded:
-            String(localized: "queue.status.succeeded")
+            String(localized: "queue.status.succeeded", bundle: .app)
         case .partial:
-            String(localized: "queue.status.partial")
+            String(localized: "queue.status.partial", bundle: .app)
         case .failed:
-            String(localized: "queue.status.failed")
+            String(localized: "queue.status.failed", bundle: .app)
         case .cancelled:
-            String(localized: "queue.status.cancelled")
+            String(localized: "queue.status.cancelled", bundle: .app)
         }
     }
 

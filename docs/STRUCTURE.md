@@ -48,13 +48,16 @@ Palladium/
 | `Resources/ManagedPipPackages.txt` | Single manifest for managed pip packages and optional `[version]` locks. |
 | `AppIntents/ShortcutDownloadIntents.swift` | App Shortcuts intents for starting downloads. |
 | `Models/AppAppearanceMode.swift` | Appearance-mode setting model. |
+| `Models/AppLanguageSettings.swift` | Persisted app language, system-language resolution, and observable localization bundle. |
 | `Models/DownloadServiceDomain.swift` | Canonical source-service domain resolver for saved-download folders. |
 | `Models/DownloadOptions.swift` | Download option model and persisted settings. |
-| `Models/DownloadQueue.swift` | Sequential download queue models, state transitions, and persistence. |
+| `Models/PostProcessingPreferences.swift` | Persisted video conversion settings and download configuration snapshots. |
+| `Models/DownloadQueue.swift` | Sequential download queue models, batch quality selection, state transitions, and persistence. |
 | `Models/ImportedCookieFile.swift` | Imported cookie-file model. |
 | `Models/LinkHistory.swift` | Previously used link model and history storage data. |
 | `Models/PackageSourceMode.swift` | Package-source selection model. |
 | `Models/TemporaryDownloadRetentionPolicy.swift` | Decides whether completed temporary downloads are removed after saving. |
+| `Models/JavaScriptRuntime.swift` | Persisted JavaScript runtime choice, defaulting to Apple WebKit. |
 | `Models/YouTubePatchMode.swift` | Patch target setting model. |
 
 ### Views
@@ -73,6 +76,8 @@ Palladium/
 | `Views/ContentView+Storage.swift` | Download storage and file-management behavior. |
 | `Views/ContentView+Support.swift` | Support, diagnostics, and helper UI behavior. |
 | `Views/Tabs/DownloadTabView.swift` | Main download screen. |
+| `Views/Tabs/GalleryVideoPreview.swift` | Gallery picker video thumbnail, loading state, and fallback icon. |
+| `Views/Tabs/FormatPickerSheetView.swift` | Shared yt-dlp format and quality picker sheet. |
 | `Views/Tabs/DownloadQueueSheetView.swift` | Multiline queue editor, controls, ordering, and item statuses. |
 | `Views/Tabs/PackagesTabView.swift` | Python package management screen. |
 | `Views/Tabs/SavedDownloadsTabView.swift` | Saved-downloads browser. |
@@ -88,8 +93,10 @@ Palladium/
 | `Views/Tabs/Settings/DownloadModesSettingsView.swift` | Download-mode settings screen. |
 | `Views/Tabs/Settings/DownloadOptionsSettingsView.swift` | Download option settings screen. |
 | `Views/Tabs/Settings/DownloadQualitySettingsView.swift` | Default video and audio quality settings screen. |
+| `Views/Tabs/Settings/PostProcessingSettingsView.swift` | Optional final video re-encoding and remux settings. |
 | `Views/Tabs/Settings/DownloadsTabSettingsView.swift` | Downloads-tab settings screen. |
 | `Views/Tabs/Settings/HistorySettingsView.swift` | History settings screen. |
+| `Views/Tabs/Settings/LanguageSettingsView.swift` | In-app language picker with a system default and bundled language choices. |
 | `Views/Tabs/Settings/NotificationsSettingsView.swift` | Notification settings screen. |
 | `Views/Tabs/Settings/PackageManagerSettingsView.swift` | Package-manager settings screen. |
 | `Views/Tabs/Settings/PackagesSettingsView.swift` | Package source and package settings screen. |
@@ -104,13 +111,15 @@ Palladium/
 | --- | --- |
 | `Services/Cookies/NetscapeCookieExporter.swift` | Converts browser cookies into Netscape cookie-file records. |
 | `Services/FFmpeg/SwiftFFmpegBridge.swift` | Swift interface to bundled FFmpeg functionality. |
+| `Services/QuickJS/` | Bounded JavaScript evaluation and the Foundation JSON bridge callable from Python. |
 | `Services/Logging/ConsoleLogStore.swift` | Store backing the in-app console. |
+| `Services/Media/GalleryVideoThumbnailLoader.swift` | Cached remote video previews using metadata thumbnails or generated frames. |
 | `Services/Shortcuts/ShortcutDownloadRequestStore.swift` | Transfers download requests from App Shortcuts into the app. |
 | `Services/Python/PythonFlowRunner.swift` | Runs bundled Python flows from Swift. |
 | `Services/Python/PythonScripts.swift` | Locates and prepares bundled Python scripts. |
 | `Services/Python/yt_dlp_flow.py` | Python flow that invokes yt-dlp for downloads. |
 | `Services/Python/palladium_ytdlp/__init__.py` | Python package marker and exports. |
-| `Services/Python/palladium_ytdlp/args.py` | Builds yt-dlp command arguments. |
+| `Services/Python/palladium_ytdlp/args.py` | Builds yt-dlp command arguments, including final video conversion overrides. |
 | `Services/Python/palladium_ytdlp/entrypoints.py` | Stable public Python entry point facade used by Swift. |
 | `Services/Python/palladium_ytdlp/ffmpeg_bridge.py` | Connects Python download work to FFmpeg. |
 | `Services/Python/palladium_ytdlp/files.py` | Download file and path helpers. |
@@ -118,6 +127,7 @@ Palladium/
 | `Services/Python/palladium_ytdlp/maintenance.py` | Python runtime package maintenance flow. |
 | `Services/Python/palladium_ytdlp/packages.py` | Python package installation and source helpers. |
 | `Services/Python/palladium_ytdlp/patching.py` | EJS solver script patcher and patch mode dispatcher. |
+| `Services/Python/palladium_ytdlp/quickjs_bridge.py` | Embedded QuickJS runtime detection, evaluation, and scoped yt-dlp provider hooks. |
 | `Services/Python/palladium_ytdlp/runtime.py` | Runtime reset, module invalidation, and cancellation helpers. |
 | `Services/Python/palladium_ytdlp/shared.py` | Shared Python helpers and constants. |
 | `Services/Python/palladium_ytdlp/webkit_jsi.py` | WebKit JavaScript integration used by yt-dlp. |
@@ -150,8 +160,17 @@ Palladium/
 
 | Path | Purpose |
 | --- | --- |
+| `scripts/test_quickjs_runtime.py` | Offline native QuickJS and real yt-dlp/EJS integration tests on arm64 macOS. |
+| `scripts/fixtures/quickjs_player.js` | Synthetic player fixture for EJS preprocessing and signature/n challenge tests. |
+| `scripts/python_tests/test_quickjs_bridge.py` | Bridge error handling, response ownership, cancellation, and default option tests. |
+| `scripts/swift_tests/QuickJSBridgeTests.swift` | App-hosted bridge export, evaluation, and isolation tests. |
+| `scripts/test_format_resolution.py` | Offline yt-dlp integration tests for format resolution, conversion processors, and output paths. |
+| `scripts/python_tests/test_post_processing.py` | Conversion override, disabled-default, and audio extraction regression tests. |
+| `scripts/swift_tests/PostProcessingPreferencesTests.swift` | Video conversion preference defaults, persistence, and supported formats. |
+| `scripts/swift_tests/AppLanguageSettingsTests.swift` | Language persistence, regional matching, English fallback, and view invalidation. |
 | `scripts/swift_tests/DownloadServiceDomainTests.swift` | Saved-download service-domain canonicalization tests. |
 | `scripts/swift_tests/DownloadQueueTests.swift` | Download queue parsing, state transition, ordering, and persistence tests. |
+| `scripts/swift_tests/YTDLPFormatTests.swift` | Resolved format selection, Photos compatibility, and exact download argument tests. |
 | `scripts/swift_tests/TemporaryDownloadRetentionPolicyTests.swift` | Temporary-download cleanup policy tests. |
 
 ## Other Files and Directories
@@ -164,6 +183,7 @@ Palladium/
 | `privacy-manifests/python/_hashlib.xcprivacy` | Required-reason API declaration for Python's hashlib module. |
 | `privacy-manifests/python/_ssl.xcprivacy` | Required-reason API declaration for Python's SSL module. |
 | `LICENSE` | GPLv3 terms. |
+| `Frameworks/QuickJS/` | Manually downloaded QuickJS-NG engine sources; required to build and intentionally untracked. |
 | `Frameworks/Python.xcframework` | Locally installed Python runtime; required to build and intentionally untracked. |
 | `Frameworks/SwiftFFmpeg-iOS` | Locally installed SwiftFFmpeg package and FFmpeg framework; required to build and intentionally untracked. |
 | `Frameworks/SwiftCurlCffi-iOS` | Locally installed Swift package containing the iOS curl-cffi payload; required to build and intentionally untracked. |

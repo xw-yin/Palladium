@@ -110,24 +110,24 @@ extension ContentView {
     ) -> (title: String, subtitle: String, icon: String, color: Color) {
         switch preset {
         case .autoVideo:
-            return (String(localized: "download.preset.video"),
-                    String(localized: "download.mode.video.help"),
+            return (String(localized: "download.preset.video", bundle: .app),
+                    String(localized: "download.mode.video.help", bundle: .app),
                     "wand.and.stars", .blue)
         case .mute:
-            return (String(localized: "download.mode.mute.title"),
-                    String(localized: "download.mode.mute.help"),
+            return (String(localized: "download.mode.mute.title", bundle: .app),
+                    String(localized: "download.mode.mute.help", bundle: .app),
                     "speaker.slash", .orange)
         case .audio:
-            return (String(localized: "download.mode.audio.title"),
-                    String(localized: "download.mode.audio.help"),
+            return (String(localized: "download.mode.audio.title", bundle: .app),
+                    String(localized: "download.mode.audio.help", bundle: .app),
                     "music.note", .green)
         case .images:
-            return (String(localized: "download.preset.images"),
+            return (String(localized: "download.preset.images", bundle: .app),
                     "Download pictures with gallery-dl",
                     "photo.on.rectangle", .purple)
         case .custom:
-            return (String(localized: "common.custom"),
-                    String(localized: "download.mode.custom.help"),
+            return (String(localized: "common.custom", bundle: .app),
+                    String(localized: "download.mode.custom.help", bundle: .app),
                     "slider.horizontal.3", .indigo)
         }
     }
@@ -314,8 +314,8 @@ extension ContentView {
             appendConsoleText("[palladium] run output folder: \(runOutputURL.lastPathComponent)\n")
         } catch {
             appendConsoleText("[palladium] failed to create run output folder: \(error.localizedDescription)\n")
-            downloadErrorText = String(localized: "download.error.prepare_folder")
-            progressText = String(localized: "download.status.failed")
+            downloadErrorText = String(localized: "download.error.prepare_folder", bundle: .app)
+            progressText = String(localized: "download.status.failed", bundle: .app)
             if let queuedItemID {
                 queuedDownloadFailed(itemID: queuedItemID, errorMessage: downloadErrorText)
             }
@@ -325,7 +325,7 @@ extension ContentView {
         isRunning = true
         syncIdleTimerDisabled()
         statusText = "running"
-        progressText = String(localized: "download.status.running")
+        progressText = String(localized: "download.status.running", bundle: .app)
         downloadCancelRequested = false
         lastDownloadProgressPercent = nil
         ffmpegProgressDurationSeconds = nil
@@ -353,7 +353,8 @@ extension ContentView {
         let readHandle = logPipe.fileHandleForReading
         let writeFD = logPipe.fileHandleForWriting.fileDescriptor
         let liveLogFD: Int32? = writeFD
-        let isExplicitFormatSelection = formatOverride != nil
+        let queuedBatchQuality = queuedConfiguration?.batchQuality
+        let isExplicitFormatSelection = formatOverride != nil || queuedBatchQuality != nil
         let overrideFormatListExportAtStart = isExplicitFormatSelection
             && DownloadQualityPreferences.load().overrideFormatListExport
         let usesQualitySettings = !isExplicitFormatSelection || overrideFormatListExportAtStart
@@ -362,6 +363,11 @@ extension ContentView {
             let formatPreset: DownloadPreset = formatOverride.hasVideo ? .autoVideo : .audio
             presetAtStart = overrideFormatListExportAtStart
                 ? formatPreset.pythonValue
+                : DownloadPreset.custom.pythonValue
+        } else if let queuedBatchQuality {
+            let qualityPreset: DownloadPreset = queuedBatchQuality.kind == .video ? .autoVideo : .audio
+            presetAtStart = overrideFormatListExportAtStart
+                ? qualityPreset.pythonValue
                 : DownloadPreset.custom.pythonValue
         } else {
             presetAtStart = effectiveDownloadPreset.pythonValue
@@ -378,12 +384,30 @@ extension ContentView {
             extraArgsAtStart = baseExtraArgs.isEmpty
                 ? formatArguments
                 : "\(baseExtraArgs) \(formatArguments)"
+        } else if let queuedBatchQuality {
+            let qualityArguments = queuedBatchQuality.formatArguments(
+                usesQualitySettings: overrideFormatListExportAtStart
+            )
+            extraArgsAtStart = baseExtraArgs.isEmpty
+                ? qualityArguments
+                : "\(baseExtraArgs) \(qualityArguments)"
         } else {
             extraArgsAtStart = baseExtraArgs
         }
         let presetArgsJSONAtStart = usesQualitySettings
             ? queuedConfiguration?.presetArgumentsJSON ?? buildPresetArgumentsJSON()
             : "{}"
+        let postProcessing = queuedConfiguration.map { $0.postProcessing ?? PostProcessingPreferences() }
+            ?? PostProcessingPreferences.load()
+        let postProcessingPreset: DownloadPreset
+        if let formatOverride {
+            postProcessingPreset = formatOverride.hasVideo ? .autoVideo : .audio
+        } else if let queuedBatchQuality {
+            postProcessingPreset = queuedBatchQuality.kind == .video ? .autoVideo : .audio
+        } else {
+            postProcessingPreset = effectiveDownloadPreset
+        }
+        let postProcessingJSONAtStart = postProcessing.configurationJSON(for: postProcessingPreset)
         let afterDownloadBehaviorAtStart = afterDownloadOverride
             ?? queuedConfiguration?.afterDownloadBehavior
             ?? afterDownloadBehavior
@@ -463,6 +487,7 @@ extension ContentView {
                     preset: presetAtStart,
                     presetArgsJSON: presetArgsJSONAtStart,
                     extraArgs: extraArgsAtStart,
+                    postProcessingJSON: postProcessingJSONAtStart,
                     downloadPlaylist: downloadPlaylistAtStart,
                     downloadSubtitles: downloadSubtitlesAtStart,
                     embedThumbnail: embedThumbnailAtStart,
@@ -548,7 +573,7 @@ extension ContentView {
                 playlistProgress = outcome.playlistProgress ?? playlistProgress
             }
             if finalResultKind == "cancelled" {
-                progressText = String(localized: "download.status.cancelled")
+                progressText = String(localized: "download.status.cancelled", bundle: .app)
                 showDownloadActionSheet = false
                 completedDownloadResult = nil
                 pendingPostDownloadResults = []
@@ -561,11 +586,11 @@ extension ContentView {
                     queuedDownloadCancelled(itemID: queuedItemID)
                 }
             } else if finalResultKind == "partial" {
-                progressText = String(localized: "download.status.partial")
+                progressText = String(localized: "download.status.partial", bundle: .app)
             } else {
                 progressText = finalResultKind == "success"
-                    ? String(localized: "download.status.complete")
-                    : String(localized: "download.status.failed")
+                    ? String(localized: "download.status.complete", bundle: .app)
+                    : String(localized: "download.status.failed", bundle: .app)
             }
             if finalResultKind == "error" {
                 downloadErrorText = downloadErrorDetails(from: outcome)
@@ -659,15 +684,21 @@ extension ContentView {
                     )
                 }
             } else if finalResultKind == "success" || finalResultKind == "partial" {
-                downloadErrorText = String(localized: "download.error.no_files_found")
+                downloadErrorText = String(localized: "download.error.no_files_found", bundle: .app)
                 if let queuedItemID {
                     queuedDownloadFailed(itemID: queuedItemID, errorMessage: downloadErrorText)
                 }
             } else if finalResultKind != "cancelled", let queuedItemID {
-                queuedDownloadFailed(
-                    itemID: queuedItemID,
-                    errorMessage: downloadErrorText ?? outcome.summaryText
-                )
+                if formatOverride == nil,
+                   queuedConfiguration?.batchQuality != nil,
+                   BatchQualitySelection.outputIndicatesUnavailableFormat(outcome.outputText) {
+                    handleQueuedQualityUnavailable(itemID: queuedItemID, url: targetURL)
+                } else {
+                    queuedDownloadFailed(
+                        itemID: queuedItemID,
+                        errorMessage: downloadErrorText ?? outcome.summaryText
+                    )
+                }
             }
         }
         currentDownloadTask = task
@@ -684,7 +715,9 @@ extension ContentView {
         let targetURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !targetURL.isEmpty,
               !isRunning,
-              !isResolvingFormats else { return }
+              !isResolvingFormats,
+              pendingBatchRepickItemID == nil,
+              pendingPerLinkQualityItemID == nil else { return }
         guard preset != .images else {
             runDownloadFlow(urlOverride: targetURL, presetOverride: preset)
             return
@@ -692,7 +725,7 @@ extension ContentView {
 
         isResolvingFormats = true
         downloadErrorText = nil
-        progressText = String(localized: "download.formats.loading")
+        progressText = String(localized: "download.formats.loading", bundle: .app)
         let cookiePath = useCookies ? resolvedSelectedCookieFilePath() : nil
         Task {
             let resolution = await PythonFlowRunner.resolveFormats(
@@ -701,14 +734,14 @@ extension ContentView {
             )
             await MainActor.run {
                 isResolvingFormats = false
-                progressText = String(localized: "download.prompt.idle")
+                progressText = String(localized: "download.prompt.idle", bundle: .app)
                 if resolution.success, !resolution.formats.isEmpty {
                     availableFormats = resolution.formats
                     formatPickerTitle = resolution.title
                     showFormatPicker = true
                 } else {
                     downloadErrorText = resolution.errorMessage
-                        ?? String(localized: "download.formats.empty")
+                        ?? String(localized: "download.formats.empty", bundle: .app)
                     if !resolution.outputText.isEmpty {
                         appendConsoleText(resolution.outputText)
                     }
@@ -746,17 +779,17 @@ extension ContentView {
                 }
                 if cancelWasRequested {
                     statusText = "cancelled"
-                    progressText = String(localized: "download.status.cancelled")
+                    progressText = String(localized: "download.status.cancelled", bundle: .app)
                 } else if resolution.success {
                     galleryItems = resolution.items
                     selectedGalleryItemIndices = []
                     showGalleryPicker = true
                     statusText = "idle"
-                    progressText = String(localized: "download.prompt.idle")
+                    progressText = String(localized: "download.prompt.idle", bundle: .app)
                 } else {
                     downloadErrorText = galleryResolutionErrorText(for: resolution)
                     statusText = "error"
-                    progressText = String(localized: "download.status.failed")
+                    progressText = String(localized: "download.status.failed", bundle: .app)
                 }
             }
         }
@@ -772,7 +805,7 @@ extension ContentView {
             .reversed()
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { $0.localizedCaseInsensitiveContains("[error]") }
-        return errorLine ?? String(localized: "gallery.error.no_items_found")
+        return errorLine ?? String(localized: "gallery.error.no_items_found", bundle: .app)
     }
 
     func gallerySelectionRange(_ indices: Set<Int>) -> String {
@@ -814,9 +847,9 @@ extension ContentView {
 
         if isRunning || isPackageRunning {
             appendConsoleText("[palladium] shortcut request received while another operation is running\n")
-            alertMessage = String(localized: "shortcuts.error.busy")
+            alertMessage = String(localized: "shortcuts.error.busy", bundle: .app)
             showAlert = true
-            showTemporaryToast(String(localized: "shortcuts.toast.received"))
+            showTemporaryToast(String(localized: "shortcuts.toast.received", bundle: .app))
             return
         }
 
@@ -903,7 +936,7 @@ extension ContentView {
         pendingDownloadProgressLine = ""
         ffmpegProgressDurationSeconds = nil
         isInstallingPackagesDuringDownload = false
-        progressText = String(localized: "download.status.cancelling")
+        progressText = String(localized: "download.status.cancelling", bundle: .app)
     }
 
     func updateProgress(from chunk: String) {
@@ -949,7 +982,7 @@ extension ContentView {
                 if let progressPercent = update.percent {
                     lastDownloadProgressPercent = progressPercent
                     let clampedPercent = min(max(progressPercent, 0), 100)
-                    let baseProcessingText = String(localized: "download.status.processing")
+                    let baseProcessingText = String(localized: "download.status.processing", bundle: .app)
                     let percentText = String(format: "%.1f%%", locale: .current, clampedPercent)
                     if let speedText = update.speedText {
                         progressText = "\(baseProcessingText) \(percentText) (\(speedText))"
@@ -957,7 +990,7 @@ extension ContentView {
                         progressText = "\(baseProcessingText) \(percentText)"
                     }
                 } else {
-                    progressText = String(localized: "download.status.processing")
+                    progressText = String(localized: "download.status.processing", bundle: .app)
                 }
             }
         } else if detailedProgressEnabled, shouldShowDetailedProgressLine(trimmed) {
@@ -969,20 +1002,20 @@ extension ContentView {
             progressText = trimmed
         } else if trimmed.contains("[VideoRemuxer]") {
             if trimmed.localizedCaseInsensitiveContains("already is in target format") {
-                progressText = String(localized: "download.status.merge_finished")
+                progressText = String(localized: "download.status.merge_finished", bundle: .app)
             } else {
                 progressText = trimmed
             }
         } else if trimmed.contains("[palladium] downloaded files detected:")
             || trimmed.contains("[palladium] primary downloaded file:") {
-            progressText = String(localized: "download.status.complete")
+            progressText = String(localized: "download.status.complete", bundle: .app)
         } else if trimmed.contains("[palladium] downloaded file:") {
-            progressText = String(localized: "download.status.complete")
+            progressText = String(localized: "download.status.complete", bundle: .app)
         } else if trimmed.hasPrefix("[ExtractAudio]") {
             progressText = trimmed
         } else if trimmed.hasPrefix("[palladium] running yt-dlp") {
             isInstallingPackagesDuringDownload = false
-            progressText = String(localized: "download.status.running")
+            progressText = String(localized: "download.status.running", bundle: .app)
             lastDownloadProgressPercent = nil
         }
     }
