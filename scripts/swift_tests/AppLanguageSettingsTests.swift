@@ -4,6 +4,8 @@ import XCTest
 
 final class AppLanguageSettingsTests: XCTestCase {
     func testSystemMatchesRegionalLanguageAndFallsBackToEnglish() {
+        XCTAssertEqual(resolve("system", ["zh-Hans-CN"]), "zh-Hans")
+        XCTAssertEqual(resolve("system", ["zh-CN"]), "zh-Hans")
         XCTAssertEqual(resolve("system", ["ja-JP"]), "ja")
         XCTAssertEqual(resolve("system", ["en-GB"]), "en")
         XCTAssertEqual(resolve("system", ["sl-SI"]), "en")
@@ -14,6 +16,7 @@ final class AppLanguageSettingsTests: XCTestCase {
     func testExplicitSelectionOverridesSystemLanguage() {
         XCTAssertEqual(resolve("en", ["ja-JP"]), "en")
         XCTAssertEqual(resolve("ja", ["en-US"]), "ja")
+        XCTAssertEqual(resolve("zh-Hans", ["en-US"]), "zh-Hans")
         XCTAssertEqual(resolve("removed-language", ["ja-JP"]), "ja")
     }
 
@@ -24,6 +27,9 @@ final class AppLanguageSettingsTests: XCTestCase {
         let language = AppLanguageSettings(defaults: defaults)
 
         XCTAssertEqual(language.selection, "system")
+        language.selection = "zh-Hans"
+        XCTAssertEqual(AppLanguageSettings(defaults: defaults).selection, "zh-Hans")
+        XCTAssertEqual(String(localized: "tab.settings", bundle: language.localizedBundle), "设置")
         language.selection = "ja"
         XCTAssertEqual(AppLanguageSettings(defaults: defaults).selection, "ja")
         XCTAssertEqual(String(localized: "tab.settings", bundle: language.localizedBundle), "設定")
@@ -47,12 +53,12 @@ final class AppLanguageSettingsTests: XCTestCase {
         } onChange: {
             changed.fulfill()
         }
-        language.selection = "ja"
+        language.selection = "zh-Hans"
         wait(for: [changed], timeout: 1)
     }
 
     private func resolve(_ selection: String, _ preferredLanguages: [String]) -> String {
         AppLanguageSettings.resolve(selection: selection, preferredLanguages: preferredLanguages,
-                                    availableLanguages: ["ja", "Base", "en"])
+                                    availableLanguages: ["ja", "zh-Hans", "Base", "en"])
     }
 }
