@@ -778,7 +778,6 @@ struct SettingsTabView: View {
                 )
             },
             controlSetting(
->>>>>>> upstream/main
                 id: "youtubePatchMode",
                 menu: .advanced,
                 title: "settings.advanced.youtube_patch_mode",
