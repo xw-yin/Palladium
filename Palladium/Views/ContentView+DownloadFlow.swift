@@ -374,8 +374,18 @@ extension ContentView {
         }
         let gallerySelectionRangeAtStart = gallerySelectionOverride.map(gallerySelectionRange)
         let gallerySelectionCountAtStart = gallerySelectionOverride?.count ?? 0
-        let baseExtraArgs = queuedConfiguration?.extraArguments
+        let globalExtraArgs = queuedConfiguration?.extraArguments
             ?? extraArgsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let websiteArgumentRule = WebsiteArgumentRules.matchingRule(
+            for: targetURL,
+            in: WebsiteArgumentRules.load()
+        )
+        if let websiteArgumentRule, effectiveDownloadPreset != .images {
+            appendConsoleText("[palladium] website arguments: \(websiteArgumentRule.pattern)\n")
+        }
+        let baseExtraArgs = [globalExtraArgs, websiteArgumentRule?.trimmedArguments ?? ""]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
         let extraArgsAtStart: String
         if let formatOverride {
             let formatArguments = formatOverride.downloadOverrideArguments(
@@ -419,6 +429,8 @@ extension ContentView {
             )
         }
         let downloadPlaylistAtStart = queuedConfiguration?.downloadPlaylist ?? downloadPlaylist
+        let filenameExportPresetAtStart = queuedConfiguration?.filenameExportPreset ?? filenameExportPreset
+        let customFilenameTemplateAtStart = queuedConfiguration?.customFilenameTemplate ?? customFilenameTemplate
         let downloadSubtitlesAtStart = queuedConfiguration?.downloadSubtitles ?? downloadSubtitles
         let embedThumbnailAtStart = queuedConfiguration?.embedThumbnail ?? embedThumbnail
         let autoRetryFailedDownloadsAtStart = queuedConfiguration?.autoRetryFailedDownloads
@@ -496,7 +508,9 @@ extension ContentView {
                     cookieFilePath: cookieFilePathAtStart,
                     runOutputDir: runOutputURL.path,
                     packageSourceJSON: buildPackageSourceJSON(),
-                    liveLogFD: liveLogFD
+                    liveLogFD: liveLogFD,
+                    filenameExportPreset: filenameExportPresetAtStart,
+                    customFilenameTemplate: customFilenameTemplateAtStart
                 )
             }
 
