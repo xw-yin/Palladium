@@ -46,6 +46,12 @@
             "state": "translated",
             "value": "貢献者"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贡献者"
+          }
         }
       }
     },
@@ -62,6 +68,12 @@
             "state": "translated",
             "value": "翻訳者"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "翻译者"
+          }
         }
       }
     },
@@ -77,6 +89,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "日本語"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日语"
           }
         }
       }
@@ -1654,6 +1672,12 @@
             "state": "translated",
             "value": "ファイル名"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件名"
+          }
         }
       }
     },
@@ -1670,6 +1694,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "デフォルト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认"
           }
         }
       }
@@ -1688,6 +1718,12 @@
             "state": "translated",
             "value": "ビデオID"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频 ID"
+          }
         }
       }
     },
@@ -1705,6 +1741,12 @@
             "state": "translated",
             "value": "カスタム"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
         }
       }
     },
@@ -1718,6 +1760,12 @@
           }
         },
         "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%(title)s.%(ext)s"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%(title)s.%(ext)s"
@@ -1739,6 +1787,12 @@
             "state": "translated",
             "value": "yt-dlp出力テンプレートを入力します。ファイル拡張子には %(ext)s を含めます。デフォルトを使用するには空白のままにしてください。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入 yt-dlp 输出模板，请包含 %(ext)s 作为文件扩展名，留空则使用默认命名。"
+          }
         }
       }
     },
@@ -1756,6 +1810,12 @@
             "state": "translated",
             "value": "デフォルトでは、長いタイトルを 200 バイトに短縮します。ビデオ ID ではメディアサイトの安定した ID を使用します。既存の -o または --output 引数は優先されます。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认会将过长标题截断至 200 字节；视频 ID 使用媒体网站的固定 ID；已有的 -o 或 --output 参数优先。"
+          }
         }
       }
     },
@@ -1765,6 +1825,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Download"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载"
           }
         }
       }
@@ -8687,6 +8753,12 @@
             "state": "translated",
             "value": "ファイル名の設定"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件名设置"
+          }
         }
       }
     },
@@ -8703,6 +8775,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ダウンロードしたファイルの名前を選択"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择下载文件的命名方式"
           }
         }
       }
@@ -11620,6 +11698,12 @@
             "state": "translated",
             "value": "ウェブサイト引数"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网站参数"
+          }
         }
       }
     },
@@ -11636,6 +11720,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "特定のウェブサイト向けの yt-dlp 引数"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "针对特定网站的 yt-dlp 参数"
           }
         }
       }
@@ -11654,6 +11744,12 @@
             "state": "translated",
             "value": "特定のウェブサイトからのリンクにのみ適用される yt-dlp 引数を追加します。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加仅对特定网站链接生效的 yt-dlp 参数。"
+          }
         }
       }
     },
@@ -11670,6 +11766,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ルール"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则"
           }
         }
       }
@@ -11688,6 +11790,12 @@
             "state": "translated",
             "value": "まだウェブサイトのルールはありません。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无网站规则。"
+          }
         }
       }
     },
@@ -11704,6 +11812,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ルールを追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加规则"
           }
         }
       }
@@ -11722,6 +11836,12 @@
             "state": "translated",
             "value": "各リンクに適用されるルールは1つのみです。正規表現ルールが上から順に優先してチェックされます。それ以外の場合は、より具体的なウェブサイトが優先されるため、example.com よりも test.example.com が先に適用されます。ウェブサイト固有の引数は、グローバルな追加引数の後ろに追加されます。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个链接只应用一条规则。正则规则优先，按从上到下顺序检查；否则最具体的网站优先，例如 test.example.com 优先于 example.com。网站参数追加在全局附加参数之后。"
+          }
         }
       }
     },
@@ -11739,6 +11859,12 @@
             "state": "translated",
             "value": "リンクをテスト"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "测试链接"
+          }
         }
       }
     },
@@ -11752,6 +11878,12 @@
           }
         },
         "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://example.com/video"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "https://example.com/video"
@@ -11773,6 +11905,12 @@
             "state": "translated",
             "value": "%@ を使用"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 %@"
+          }
         }
       }
     },
@@ -11789,6 +11927,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "このリンクに一致するルールはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有规则匹配此链接。"
           }
         }
       }
@@ -11807,6 +11951,12 @@
             "state": "translated",
             "value": "一致"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匹配方式"
+          }
         }
       }
     },
@@ -11823,6 +11973,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ウェブサイト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网站"
           }
         }
       }
@@ -11841,6 +11997,12 @@
             "state": "translated",
             "value": "正規表現"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正则"
+          }
         }
       }
     },
@@ -11854,6 +12016,12 @@
           }
         },
         "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "example.com"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "example.com"
@@ -11875,6 +12043,12 @@
             "state": "translated",
             "value": "https?://example.com/watch.*"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https?://example.com/watch.*"
+          }
         }
       }
     },
@@ -11891,6 +12065,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "このウェブサイトとそのすべてのサブドメインが一致します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匹配该网站及其所有子域名。"
           }
         }
       }
@@ -11909,6 +12089,12 @@
             "state": "translated",
             "value": "大文字と小文字を無視して、完全なリンクと一致しました。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对完整链接进行匹配，不区分大小写。"
+          }
         }
       }
     },
@@ -11925,6 +12111,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "example.com のようなウェブサイトを入力します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入如 example.com 的网站域名。"
           }
         }
       }
@@ -11943,6 +12135,12 @@
             "state": "translated",
             "value": "この正規表現は無効です。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该正则表达式无效。"
+          }
         }
       }
     },
@@ -11960,6 +12158,12 @@
             "state": "translated",
             "value": "引数"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参数"
+          }
         }
       }
     },
@@ -11973,6 +12177,12 @@
           }
         },
         "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "--no-mtime"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "--no-mtime"
@@ -11994,6 +12204,12 @@
             "state": "translated",
             "value": "このルールに一致するリンクに対するグローバル追加引数の後に追加されました。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对匹配该规则的链接，这些参数将追加在全局附加参数之后。"
+          }
         }
       }
     },
@@ -12010,6 +12226,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "有効"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已启用"
           }
         }
       }
@@ -12028,6 +12250,12 @@
             "state": "translated",
             "value": "オフ"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
         }
       }
     },
@@ -12045,6 +12273,12 @@
             "state": "translated",
             "value": "新しいルール"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建规则"
+          }
         }
       }
     },
@@ -12061,6 +12295,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ルール編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑规则"
           }
         }
       }
